@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Dummy artist portrait</title>
+  <desc id="desc">A warm placeholder portrait illustration for the homepage hero.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#133f3a"/>
+      <stop offset="55%" stop-color="#1e564e"/>
+      <stop offset="100%" stop-color="#c58f48"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="26%" r="42%">
+      <stop offset="0%" stop-color="#f4d39f" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#f4d39f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="900" height="1100" fill="url(#bg)"/>
+  <ellipse cx="450" cy="250" rx="220" ry="180" fill="url(#halo)"/>
+  <path d="M280 990c34-167 99-291 173-352 79-65 176-72 238 0 56 65 97 171 126 352H280Z" fill="#19221f"/>
+  <path d="M361 450c0-98 64-179 145-179s145 81 145 179c0 96-64 173-145 173s-145-77-145-173Z" fill="#ddaf7e"/>
+  <path d="M356 443c11-120 83-205 157-205 98 0 161 77 168 194-35-26-73-37-105-34-37 2-65 16-91 17-55 2-77-30-129 28Z" fill="#101716"/>
+  <path d="M390 473c53-46 96-31 129-28 34 3 61-14 107-15 18 0 34 4 48 11-9 98-69 182-148 182-76 0-134-70-136-150Z" fill="#ddb082"/>
+  <path d="M455 501c38 23 74 23 112 0-7 46-32 71-56 71-24 0-46-24-56-71Z" fill="#c27f63"/>
+  <path d="M564 716c-30 33-59 47-90 47-31 0-64-16-99-47l37-92h114l38 92Z" fill="#d9a97b"/>
+  <path d="M273 980c24-87 59-164 104-226 47-63 90-98 129-106-49 47-79 132-89 248l-144 84Z" fill="#30403b"/>
+  <path d="M620 652c45 13 89 50 136 115 44 60 77 135 100 213l-136-82c-8-116-39-200-100-246Z" fill="#30403b"/>
+  <path d="M287 674c119 36 237 37 353 0-55 34-113 52-176 52-63 0-122-18-177-52Z" fill="#bf8c53"/>
+  <path d="M190 680c175 15 355-6 523-72l14 38c-173 70-364 95-560 76l23-42Z" fill="#d9bc74"/>
+  <circle cx="414" cy="477" r="10" fill="#2c2218"/>
+  <circle cx="594" cy="477" r="10" fill="#2c2218"/>
+  <path d="M458 542c31 18 62 18 93 0" fill="none" stroke="#8b5e44" stroke-linecap="round" stroke-width="9"/>
+</svg>

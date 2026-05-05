@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+.vscode
+.DS_Store
+tsconfig.node.tsbuildinfo
+tsconfig.tsbuildinfo
+_DataURI
+fonts.googleapis.com
+fonts.gstatic.com
+rakeshchaurasia.com
+s.w.org
+www.youtube.com
