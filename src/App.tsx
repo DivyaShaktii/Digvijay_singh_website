@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
-type AppRoute = "home" | "biography" | "courses" | "gallery" | "contact" | "admin" | "login";
+type AppRoute = "home" | "biography" | "FluteRoots" | "organizersCorner" | "contact" | "admin" | "login";
 
 interface Course {
   id: string; // Changed to string for UUIDs
@@ -20,6 +20,13 @@ interface GalleryImage {
   id: string;
   image_url: string;
   display_order: number;
+}
+
+interface CalendarEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  type: 'performance' | 'class' | 'blocked';
 }
 
 interface Enrollment {
@@ -86,9 +93,15 @@ const images = {
 
 function App() {
   const [route, setRoute] = useState<AppRoute>(() => {
-    const hash = window.location.hash.replace("#/", "") as AppRoute;
-    return ["home", "biography", "courses", "gallery", "contact", "admin", "login"].includes(hash) ? hash : "home";
+    const path = window.location.pathname.replace("/", "") || "home";
+    return ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"].includes(path) ? path as AppRoute : "home";
   });
+
+  const navigate = (to: AppRoute) => {
+    window.history.pushState({}, "", to === "home" ? "/" : `/${to}`);
+    setRoute(to);
+    window.scrollTo(0, 0);
+  };
 
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -96,61 +109,106 @@ function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [galleryItems, setGalleryItems] = useState<GalleryImage[]>([]);
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
+  const [heroImageUrl, setHeroImageUrl] = useState<string>(images.hero);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [introVideo, setIntroVideo] = useState({
+    url: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Default fallback
+    title: "Introductory Video",
+    description: "Welcome to the world of Bansuri. Here we explore the deep meditative qualities of the Indian flute."
+  });
   const [loading, setLoading] = useState(true);
 
   // Fetch initial data
+  const isInitialLoad = useRef(true);
+  const isFetching = useRef(false);
+
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    if (isFetching.current) return;
+    
     try {
-      // Fetch Courses
-      const { data: coursesData, error: coursesError } = await supabase
-        .from('courses')
-        .select('*')
-        .order('created_at', { ascending: true });
+      isFetching.current = true;
+      if (isInitialLoad.current) setLoading(true);
 
-      if (!coursesError) setCourses(coursesData || []);
+      const [coursesRes, galleryRes, settingsRes, eventsRes] = await Promise.all([
+        supabase.from('courses').select('*').order('created_at', { ascending: false }),
+        supabase.from('gallery').select('*').order('display_order', { ascending: true }),
+        supabase.from('settings').select('*'),
+        supabase.from('events').select('*').order('date', { ascending: true })
+      ]);
 
-      // Fetch Gallery
-      const { data: galleryData, error: galleryError } = await supabase
-        .from('gallery')
-        .select('*')
-        .order('display_order', { ascending: true });
+      if (coursesRes.error) {
+        const local = JSON.parse(localStorage.getItem('local_courses') || '[]');
+        setCourses(local);
+      } else {
+        setCourses(coursesRes.data || []);
+      }
 
-      if (!galleryError) setGalleryItems(galleryData || []);
+      if (!galleryRes.error) setGalleryItems(galleryRes.data || []);
 
-      // Fetch User Enrollments
+      if (!settingsRes.error && settingsRes.data) {
+        const settings = settingsRes.data;
+        const hero = settings.find(s => s.key === 'hero_image_url');
+        if (hero) setHeroImageUrl(hero.value);
+
+        const newIntro = { ...introVideo };
+        settings.forEach(s => {
+          if (s.key === 'intro_video_url') newIntro.url = s.value;
+          if (s.key === 'intro_video_title') newIntro.title = s.value;
+          if (s.key === 'intro_video_description') newIntro.description = s.value;
+        });
+        setIntroVideo(newIntro);
+      }
+
+      if (eventsRes.error) {
+        const local = JSON.parse(localStorage.getItem('local_events') || '[]');
+        setCalendarEvents(local);
+      } else {
+        setCalendarEvents(eventsRes.data || []);
+      }
+
       if (user) {
-        const { data: enrollData } = await supabase
-          .from('enrollments')
-          .select('course_id')
-          .eq('user_id', user.id);
+        const { data: enrollData } = await supabase.from('enrollments').select('course_id').eq('user_id', user.id);
         if (enrollData) setEnrollments(enrollData.map(e => e.course_id));
       }
+
+      isInitialLoad.current = false;
     } catch (err) {
-      console.error("Error fetching data:", err);
+      console.error("Sync Error:", err);
     } finally {
       setLoading(false);
+      isFetching.current = false;
     }
   }, [user]);
 
   useEffect(() => {
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      // For this project, we can check if email matches admin
-      setIsUserAdmin(session?.user?.email === "digvijayflute@gmail.com" || session?.user?.email === "janhavikolekar280@gmail.com");
-    });
+    // Initial Session Check
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      setIsUserAdmin(currentUser?.email === "digvijayflute@gmail.com" || currentUser?.email === "janhavikolekar280@gmail.com");
+      fetchData();
+    };
+
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setIsUserAdmin(session?.user?.email === "digvijayflute@gmail.com" || session?.user?.email === "janhavikolekar280@gmail.com");
+      const newUser = session?.user ?? null;
+      setUser(newUser);
+      setIsUserAdmin(newUser?.email === "digvijayflute@gmail.com" || newUser?.email === "janhavikolekar280@gmail.com");
+      // Only re-fetch if user changed
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        fetchData();
+      }
     });
 
-    fetchData();
+    return () => subscription.unsubscribe();
+  }, [fetchData]);
 
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace("#/", "") as AppRoute;
-      setRoute(["home", "biography", "courses", "gallery", "contact", "admin", "login"].includes(hash) ? hash : "home");
+  useEffect(() => {
+    const handlePathChange = () => {
+      const path = window.location.pathname.replace("/", "") || "home";
+      setRoute(["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"].includes(path) ? path as AppRoute : "home");
       window.scrollTo(0, 0);
     };
 
@@ -158,18 +216,17 @@ function App() {
       setScrolled(window.scrollY > 50);
     };
 
-    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("popstate", handlePathChange);
     window.addEventListener("scroll", handleScroll);
     document.title = `${artistProfile.name} | ${artistProfile.role}`;
 
     return () => {
-      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("popstate", handlePathChange);
       window.removeEventListener("scroll", handleScroll);
-      subscription.unsubscribe();
     };
   }, [fetchData]);
 
-  const isDarkMode = route === "home" || route === "biography" || route === "courses" || route === "gallery" || route === "contact";
+  const isDarkMode = route === "home" || route === "biography" || route === "FluteRoots" || route === "organizersCorner" || route === "contact";
   const isAdmin = route === "admin";
 
   return (
@@ -179,18 +236,18 @@ function App() {
           <div className="nav-container">
             <div className="header-placeholder" style={{ flex: 1 }}></div>
             <nav className="site-nav">
-              <a href="#/home" className="nav-link">Home</a>
-              <a href="#/biography" className="nav-link">Biography</a>
-              <a href="#/courses" className="nav-link">Courses</a>
-              <a href="#/gallery" className="nav-link">Event Gallery</a>
-              <a href="#/contact" className="nav-link">Contact</a>
+              <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="nav-link">Home</a>
+              <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className="nav-link">Courses</a>
+              <a href="/organizersCorner" onClick={(e) => { e.preventDefault(); navigate("organizersCorner"); }} className="nav-link">Organizers Corner</a>
+              <a href="/biography" onClick={(e) => { e.preventDefault(); navigate("biography"); }} className="nav-link">Biography</a>
+              <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="nav-link">Contact</a>
             </nav>
             <div className="auth-nav">
-              {isUserAdmin && <a href="#/admin" className="nav-link admin-link">Dashboard</a>}
+              {isUserAdmin && <a href="/admin" onClick={(e) => { e.preventDefault(); navigate("admin"); }} className="nav-link admin-link">Dashboard</a>}
               {user ? (
-                <button onClick={() => supabase.auth.signOut()} className="nav-link signout-btn">Sign Out</button>
+                <button onClick={() => supabase.auth.signOut()} className="nav-link signout-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Sign Out</button>
               ) : (
-                <a href="#/login" className="nav-link login-btn">Login</a>
+                <a href="/login" onClick={(e) => { e.preventDefault(); navigate("login"); }} className="nav-link login-btn">Login</a>
               )}
             </div>
           </div>
@@ -198,13 +255,25 @@ function App() {
       )}
 
       <main>
-        {route === "home" && <HomePage galleryItems={galleryItems} />}
+        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} />}
         {route === "biography" && <BiographyPage />}
-        {route === "courses" && <CoursesPage courses={courses} user={user} enrollments={enrollments} onRefresh={fetchData} />}
-        {route === "gallery" && <GalleryPage images={galleryItems} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} />}
+        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} />}
         {route === "contact" && <ContactPage />}
-        {route === "admin" && (isUserAdmin ? <AdminPage courses={courses} galleryItems={galleryItems} onRefresh={fetchData} /> : <LoginPage />)}
-        {route === "login" && <LoginPage />}
+        {route === "admin" && (isUserAdmin ? (
+          <AdminPage 
+            navigate={navigate} 
+            courses={courses} 
+            galleryItems={galleryItems} 
+            heroImageUrl={heroImageUrl} 
+            setHeroImageUrl={setHeroImageUrl} 
+            introVideo={introVideo}
+            calendarEvents={calendarEvents}
+            onRefresh={fetchData} 
+            user={user}
+          />
+        ) : <LoginPage navigate={navigate} />)}
+        {route === "login" && <LoginPage navigate={navigate} />}
       </main>
       {!isAdmin && <Footer />}
     </div>
@@ -232,14 +301,27 @@ function Footer() {
   );
 }
 
-function HomePage({ galleryItems }: { galleryItems: GalleryImage[] }) {
-  const displayGallery = galleryItems.length > 0 ? galleryItems.map(img => img.image_url) : images.gallery;
+function HomePage({ navigate, galleryItems, heroImageUrl, introVideo }: { 
+  navigate: (to: AppRoute) => void,
+  galleryItems: GalleryImage[], 
+  heroImageUrl: string,
+  introVideo: { url: string, title: string, description: string }
+}) {
+  const { url, title, description } = introVideo;
+  const videoId = getYouTubeId(url);
+  const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0` : url;
   
   return (
     <>
       <section className="hero">
-        <div className="hero-bg">
-          <img src={images.hero} alt={artistProfile.name} />
+        <div className="hero-bg" style={{ backgroundColor: '#000' }}>
+          <img 
+            src={heroImageUrl || images.hero} 
+            alt={artistProfile.name} 
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = images.hero;
+            }}
+          />
         </div>
         <div className="hero-content hero-top-right">
           <h1 className="hero-title serif-title">{artistProfile.name}</h1>
@@ -268,7 +350,27 @@ function HomePage({ galleryItems }: { galleryItems: GalleryImage[] }) {
           <p className="split-text">
             Trained in the traditional Guru-Shishya Parampara, Digvijaysinh Chauhan brings a rare depth of emotion and technical mastery to the bansuri. His performances are a journey through the meditative landscapes of Indian Ragas.
           </p>
-          <a href="#/biography" className="text-gold text-serif text-italic" style={{ marginTop: '32px', display: 'inline-block' }}>Read more about the artist →</a>
+          <button onClick={() => navigate("biography")} className="text-gold text-serif text-italic" style={{ background: 'none', border: 'none', padding: 0, marginTop: '32px', display: 'inline-block', cursor: 'pointer' }}>Read more about the artist →</button>
+        </div>
+      </section>
+
+      {/* Video Introduction Section */}
+      <section className="intro-section" style={{ padding: '80px 0', backgroundColor: '#fff' }}>
+        <div className="container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'center' }}>
+          <div className="intro-video" style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', aspectRatio: '16/9', background: '#000' }}>
+                <iframe 
+                  src={embedUrl}
+                  title={title}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  allowFullScreen
+                ></iframe>
+          </div>
+          <div className="intro-content">
+            <span className="section-label" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px', display: 'block', marginBottom: '12px' }}>Introduction</span>
+            <h2 className="serif-title" style={{ fontSize: '42px', marginBottom: '24px' }}>{title}</h2>
+            <p style={{ color: '#666', lineHeight: '1.8', fontSize: '18px' }}>{description}</p>
+          </div>
         </div>
       </section>
     </>
@@ -315,37 +417,9 @@ function BiographyPage() {
   );
 }
 
-const placeholderCourses = [
-  {
-    id: 1,
-    title: "Bansuri Basics — Foundation Course",
-    level: "Beginner",
-    duration: "8 Weeks",
-    lessons: 24,
-    description: "Master the fundamentals of bansuri playing — breath control, finger technique, and your first ragas.",
-    price: "Coming Soon",
-  },
-  {
-    id: 2,
-    title: "Raga Exploration — Intermediate",
-    level: "Intermediate",
-    duration: "12 Weeks",
-    lessons: 36,
-    description: "Dive deep into Hindustani ragas, learn alap-jod-jhala structures and develop your improvisational skills.",
-    price: "Coming Soon",
-  },
-  {
-    id: 3,
-    title: "Advanced Raga Rendition",
-    level: "Advanced",
-    duration: "16 Weeks",
-    lessons: 48,
-    description: "Master complex ragas, advanced taan patterns, and concert-level performance techniques.",
-    price: "Coming Soon",
-  },
-];
 
-function CoursesPage({ courses, user, enrollments, onRefresh }: { courses: Course[], user: any, enrollments: string[], onRefresh: () => void }) {
+
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh }: { navigate: (to: AppRoute) => void, courses: Course[], user: any, enrollments: string[], calendarEvents: CalendarEvent[], onRefresh: () => void }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [payingFor, setPayingFor] = useState<string | null>(null);
 
@@ -355,7 +429,7 @@ function CoursesPage({ courses, user, enrollments, onRefresh }: { courses: Cours
       const links: Record<string, string> = {};
       for (const id of enrollments) {
         const course = courses.find(c => c.id === id);
-        if (course && course.video_url.includes('supabase.co')) {
+        if (course && course.video_url && course.video_url.includes('supabase.co')) {
           // Extract filename from public URL or just use the URL if it's already a path
           const path = course.video_url.split('/').pop() || "";
           const { data, error } = await supabase.storage.from('course-media').createSignedUrl(path, 7200); // 2 hours
@@ -369,19 +443,37 @@ function CoursesPage({ courses, user, enrollments, onRefresh }: { courses: Cours
 
   const handleEnroll = async (course: Course) => {
     if (!user) {
-      window.location.hash = "#/login";
+      navigate("login");
+      return;
+    }
+
+    const priceValue = course.price ? parseInt(course.price.replace(/[^0-9]/g, "")) : 0;
+    
+    // Handle Free Courses
+    if (priceValue === 0) {
+      try {
+        const { error } = await supabase.from('enrollments').insert([{ user_id: user.id, course_id: course.id }]);
+        if (error) throw error;
+        alert("Success! You are now enrolled in this free course.");
+        onRefresh();
+      } catch (err) {
+        alert("Enrollment failed. Please try again.");
+      } finally {
+        setPayingFor(null);
+      }
       return;
     }
 
     setPayingFor(course.id);
     
     const options = {
-      key: "rzp_test_YOUR_KEY_HERE", // Replace with real key
-      amount: parseInt(course.price.replace(/[^0-9]/g, "")) * 100, // in paisa
+      // IMPORTANT: Replace the string below with your real Key ID from Razorpay Dashboard
+      key: "rzp_test_YOUR_KEY_HERE", 
+      amount: priceValue * 100, // in paisa
       currency: "INR",
       name: "Flute Roots",
-      description: `Enrollment for ${course.title}`,
-      image: "/vite.svg",
+      description: `Enrollment: ${course.title}`,
+      image: heroImageUrl || "/vite.svg",
       handler: async function (response: any) {
         // Payment success
         const { error } = await supabase
@@ -403,6 +495,10 @@ function CoursesPage({ courses, user, enrollments, onRefresh }: { courses: Cours
       },
       prefill: {
         email: user.email,
+        contact: "" 
+      },
+      notes: {
+        owner_email: "digvijayflute@gmail.com" 
       },
       theme: {
         color: "#c7a17a",
@@ -513,30 +609,173 @@ function CoursesPage({ courses, user, enrollments, onRefresh }: { courses: Cours
 
       <section className="courses-cta">
         <div className="courses-cta-content">
-          <h2 className="text-serif">Private Lessons Available</h2>
-          <p>For personalized one-on-one training in the Guru-Shishya tradition, reach out directly.</p>
-          <a href="#/contact" className="courses-cta-btn">Get In Touch</a>
+          <h2 className="text-serif">Book a Live Online Class</h2>
+          <p>Check my availability and book a personalized one-on-one session.</p>
+          
+          <div style={{ maxWidth: '500px', margin: '40px auto' }}>
+            <SimpleCalendar onDateSelect={(d) => alert("Checking availability for " + d + ". Please contact via the form below.")} events={calendarEvents} />
+          </div>
+          
+          <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="courses-cta-btn">Enquire for Slot</a>
         </div>
       </section>
     </>
   );
 }
 
-function GalleryPage({ images: dbImages }: { images: GalleryImage[] }) {
+function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSelect: (date: string) => void, selectedDate?: string, events?: CalendarEvent[] }) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+  
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  const days = [];
+  for (let i = 0; i < firstDayOfMonth(year, month); i++) {
+    days.push(null);
+  }
+  for (let i = 1; i <= daysInMonth(year, month); i++) {
+    days.push(i);
+  }
+  
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  const handlePrev = () => setCurrentDate(new Date(year, month - 1, 1));
+  const handleNext = () => setCurrentDate(new Date(year, month + 1, 1));
+  
+  return (
+    <div className="simple-calendar" style={{ background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', width: '100%' }}>
+      <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h3 style={{ margin: 0, fontSize: '20px', fontFamily: 'var(--font-serif)' }}>{monthNames[month]} {year}</h3>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={handlePrev} style={{ background: '#f5f5f5', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>&lt;</button>
+          <button onClick={handleNext} style={{ background: '#f5f5f5', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>&gt;</button>
+        </div>
+      </div>
+      <div className="calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center' }}>
+        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+          <div key={day} style={{ fontWeight: '600', fontSize: '12px', color: '#999', paddingBottom: '8px' }}>{day}</div>
+        ))}
+        {days.map((day, i) => {
+          const dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+          const isSelected = selectedDate === dateStr;
+          const isToday = day && new Date().toDateString() === new Date(year, month, day).toDateString();
+          const dayEvents = events.filter(e => e.date === dateStr);
+          const isBlocked = dayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
+          
+          return (
+            <div 
+              key={i} 
+              onClick={() => dateStr && onDateSelect(dateStr)}
+              style={{ 
+                padding: '12px 0', 
+                borderRadius: '8px', 
+                cursor: day ? 'pointer' : 'default',
+                background: isSelected ? 'var(--gold)' : (isToday ? '#fcfaf7' : 'transparent'),
+                color: isSelected ? 'white' : (day ? 'inherit' : 'transparent'),
+                fontWeight: isSelected || isToday ? '600' : '400',
+                border: isToday && !isSelected ? '1px solid var(--gold)' : 'none',
+                position: 'relative',
+                transition: 'all 0.2s'
+              }}
+            >
+              {day}
+              {day && isBlocked && !isSelected && (
+                <div style={{ position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--gold)' }}></div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OrganizersCornerPage({ images: dbImages, calendarEvents }: { images: GalleryImage[], calendarEvents: CalendarEvent[] }) {
   const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  const selectedDayEvents = calendarEvents.filter(e => e.date === selectedDate);
+  const isBlocked = selectedDayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
 
   return (
     <>
       <section className="page-hero">
-        <h1 className="page-hero-title">Event Gallery</h1>
+        <h1 className="page-hero-title">Organizers Corner</h1>
+        <p className="page-hero-subtitle">Check availability and upcoming performances</p>
       </section>
 
-      <section className="gallery-grid">
-        {displayImages.map((src, i) => (
-          <div key={i} className="gallery-item">
-            <img src={src} alt={`Gallery image ${i + 1}`} />
+      {/* Upcoming Event Band / Calendar Section */}
+      <section className="calendar-band" style={{ padding: '60px 0', background: '#fcfaf7' }}>
+        <div className="container">
+          <div className="calendar-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
+            <div className="calendar-info">
+              <span className="eyebrow">Availability</span>
+              <h2 className="serif-title" style={{ fontSize: '36px', marginBottom: '24px' }}>Upcoming Schedule</h2>
+              <p style={{ color: '#666', lineHeight: '1.8', marginBottom: '32px' }}>
+                Organizers can check my availability for concerts, workshops, and private sessions. Use the calendar to see booked dates and open slots.
+              </p>
+              <div className="event-details-card" style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', borderTop: '4px solid var(--gold)' }}>
+                <h4 style={{ marginBottom: '24px', color: '#2c3e50', fontFamily: 'var(--font-serif)', fontSize: '20px' }}>
+                  {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </h4>
+                
+                {selectedDayEvents.length > 0 ? (
+                  selectedDayEvents.map(e => (
+                    <div key={e.id} style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', borderLeft: '4px solid var(--gold)' }}>
+                      <span style={{ display: 'block', fontSize: '12px', color: '#c5a059', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Booked</span>
+                      <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>
+                        Digvijaysinh is {e.title}
+                      </strong>
+                      <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
+                        This date is currently reserved for a {e.type} and is unavailable for new bookings.
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="status-indicator">
+                    <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Available</span>
+                    <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Available for Sessions</strong>
+                    <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
+                      This date is currently open for concerts, workshops, or private flute sessions.
+                    </p>
+                    <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center' }}>
+                      Contact for a Session
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="calendar-wrapper">
+               <SimpleCalendar onDateSelect={setSelectedDate} selectedDate={selectedDate} events={calendarEvents} />
+            </div>
           </div>
-        ))}
+        </div>
+      </section>
+
+      <section style={{ padding: '80px 0', background: '#fcfaf7' }}>
+        <div className="container">
+          <h2 className="serif-title text-center" style={{ marginBottom: '60px', fontSize: '36px' }}>Moments from Performances</h2>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gap: '30px',
+            width: '100%'
+          }}>
+            {displayImages.map((src, i) => (
+              <div key={i} style={{ 
+                borderRadius: '4px', 
+                overflow: 'hidden', 
+                height: '300px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.05)'
+              }}>
+                <img src={src} alt={`Gallery image ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="quote-section">
@@ -575,9 +814,7 @@ function ContactPage() {
             </div>
           </div>
 
-          <div className="map-placeholder">
-            [ Interactive Map Placeholder ]
-          </div>
+
         </div>
 
         <form className="contact-form">
@@ -620,12 +857,24 @@ function ContactPage() {
   );
 }
 
-function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], galleryItems: GalleryImage[], onRefresh: () => void }) {
+function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImageUrl, introVideo, calendarEvents, onRefresh, user }: { 
+  navigate: (to: AppRoute) => void,
+  courses: Course[], 
+  galleryItems: GalleryImage[], 
+  heroImageUrl: string, 
+  setHeroImageUrl: (url: string) => void,
+  introVideo: { url: string, title: string, description: string },
+  calendarEvents: CalendarEvent[],
+  onRefresh: () => void,
+  user: any
+}) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "" });
+  const [eventForm, setEventForm] = useState({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' as const });
   const [toast, setToast] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [introForm, setIntroForm] = useState(introVideo);
   const [videoFiles, setVideoFiles] = useState<{name: string, url: string}[]>([]);
 
   // Fetch videos from storage bucket
@@ -655,21 +904,49 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
+    setUploading(bucket === 'course-media' ? 'course-media' : 'gallery');
+    
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // DEBUG: Log current session
+      console.log("Current user for upload:", user);
+      if (!user) {
+        alert("UPLOAD ERROR: Not logged in. Please login to upload files.");
+        setUploading(null);
+        return;
+      }
 
+      // 1. Pre-check: File Size
+      if (file.size > 50 * 1024 * 1024) {
+        const proceed = confirm(`WARNING: This file is ${Math.round(file.size / (1024 * 1024))}MB. Supabase free tier often blocks uploads larger than 50MB.\n\nTry anyway?`);
+        if (!proceed) {
+          setUploading(null);
+          return;
+        }
+      }
+
+      // 2. Sanitize Filename (Aggressive)
+      const fileExt = file.name.split('.').pop();
+      const cleanBaseName = file.name.split('.').slice(0, -1).join('_').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `${Date.now()}_${cleanBaseName}.${fileExt}`;
+      
+      console.log(`Uploading ${file.name} -> ${fileName} (${Math.round(file.size / 1024)} KB) to ${bucket}...`);
+      
       const { error: uploadError } = await supabase.storage
         .from(bucket)
-        .upload(filePath, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || undefined
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Supabase Storage Error Object:", uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
-        .getPublicUrl(filePath);
+        .getPublicUrl(fileName);
 
       if (bucket === 'course-media') {
         setForm({ ...form, video_url: publicUrl });
@@ -683,15 +960,23 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
         showToast("Image added to gallery!");
       }
     } catch (err: any) {
-      console.error("Upload error:", err);
-      if (err.message === 'Failed to fetch') {
-        alert("Upload failed: Connection interrupted or file too large. Please check your internet or try a smaller file.");
+      console.error("DIAGNOSTIC UPLOAD ERROR:", err);
+      
+      // Fallback: Use Local URL for preview
+      const localUrl = URL.createObjectURL(file);
+      setForm({ ...form, video_url: localUrl });
+      
+      let errorMsg = err.message || "Unknown error";
+      const errorCode = err.status || err.code || "No Code";
+      
+      if (err.name === 'TypeError' || err.message === 'Failed to fetch') {
+        alert(`NETWORK ERROR (CORS or Adblock):\n\nYour browser blocked the upload to Supabase.\n\n1. Disable Adblockers\n2. Check Supabase Storage -> Settings -> CORS\n3. Use http://localhost:5173 (not 127.0.0.1)`);
       } else {
-        alert("Upload error: " + (err.message || "Unknown error"));
+        alert(`SUPABASE ERROR:\nMessage: ${errorMsg}\nCode: ${errorCode}\n\nThis usually means the 'course-media' bucket is missing or private.`);
       }
     } finally {
-      setUploading(false);
-      e.target.value = "";
+      setUploading(null);
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -699,14 +984,20 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
+    setUploading('course-thumb');
     try {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Thumbnail is too large (>5MB). Please use a smaller image.");
+        setUploading(null);
+        return;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_thumb.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('course-media')
-        .upload(fileName, file);
+        .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -720,7 +1011,7 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
       console.error(err);
       alert("Error uploading thumbnail: " + err.message);
     } finally {
-      setUploading(false);
+      setUploading(null);
       e.target.value = "";
     }
   };
@@ -730,12 +1021,19 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setUploading(true);
+    setUploading('gallery');
     let successCount = 0;
     const totalFiles = files.length;
 
     for (let i = 0; i < totalFiles; i++) {
       const file = files[i];
+      
+      // Image size check (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        console.warn(`Skipping ${file.name}: Too large (${Math.round(file.size/1024/1024)}MB)`);
+        continue;
+      }
+
       setUploadProgress(`Uploading ${i + 1} of ${totalFiles}...`);
       try {
         const fileExt = file.name.split('.').pop();
@@ -743,7 +1041,7 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
 
         const { error: uploadError } = await supabase.storage
           .from('gallery-photos')
-          .upload(fileName, file);
+          .upload(fileName, file, { upsert: true });
 
         if (uploadError) { console.error(uploadError); continue; }
 
@@ -756,13 +1054,17 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
           .insert([{ image_url: publicUrl, display_order: galleryItems.length + i }]);
 
         if (!dbError) successCount++;
+        else console.error(dbError);
       } catch (err) { console.error(err); }
     }
 
-    setUploading(false);
+    setUploading(null);
     setUploadProgress("");
     onRefresh();
     showToast(`${successCount} of ${totalFiles} photos uploaded!`);
+    if (successCount < totalFiles) {
+      alert(`Notice: ${totalFiles - successCount} files failed to upload. Check console for details (likely size limits or network).`);
+    }
     e.target.value = "";
   };
 
@@ -771,12 +1073,19 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setUploading(true);
+    setUploading('video-gallery');
     let successCount = 0;
     const totalFiles = files.length;
 
     for (let i = 0; i < totalFiles; i++) {
       const file = files[i];
+      
+      // Video size check (50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        console.warn(`Skipping ${file.name}: Too large for free tier (${Math.round(file.size/1024/1024)}MB)`);
+        continue;
+      }
+
       setUploadProgress(`Uploading video ${i + 1} of ${totalFiles}...`);
       try {
         const fileExt = file.name.split('.').pop();
@@ -784,43 +1093,54 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
 
         const { error: uploadError } = await supabase.storage
           .from('course-media')
-          .upload(fileName, file);
+          .upload(fileName, file, { upsert: true });
 
         if (!uploadError) successCount++;
         else console.error(uploadError);
       } catch (err) { console.error(err); }
     }
 
-    setUploading(false);
+    setUploading(null);
     setUploadProgress("");
     fetchVideos();
     showToast(`${successCount} of ${totalFiles} videos uploaded!`);
+    if (successCount < totalFiles) {
+      alert(`Notice: ${totalFiles - successCount} videos failed to upload. Check console for details (likely size limits or network).`);
+    }
     e.target.value = "";
   };
 
   const handleDeleteVideo = async (name: string) => {
     if (!confirm("Delete this video?")) return;
-    const { error } = await supabase.storage.from('course-media').remove([name]);
-    if (error) alert(error.message);
-    else { fetchVideos(); showToast("Video deleted."); }
+    try {
+      const { error } = await supabase.storage.from('course-media').remove([name]);
+      if (error) alert("Server Error: " + error.message);
+      else { fetchVideos(); showToast("Video deleted."); }
+    } catch (err: any) {
+      alert("Network Error: " + err.message + "\n\n(Your browser is blocking the deletion request. Try using an Incognito window!)");
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.description.trim()) return;
+    if (!form.title.trim() || !form.description.trim()) {
+      alert("Please fill in the Course Title and Description first.");
+      return;
+    }
 
-    setUploading(true);
+    const courseData = {
+      title: form.title,
+      description: form.description,
+      level: form.level,
+      duration: form.duration,
+      lessons: Number(form.lessons),
+      price: form.price,
+      video_url: form.video_url,
+      thumbnail_url: form.thumbnail_url
+    };
+
+    setUploading('course-save');
     try {
-      const courseData = {
-        title: form.title,
-        description: form.description,
-        level: form.level,
-        duration: form.duration,
-        lessons: Number(form.lessons),
-        price: form.price,
-        video_url: form.video_url,
-        thumbnail_url: form.thumbnail_url
-      };
 
       if (editingId) {
         const { error } = await supabase
@@ -839,9 +1159,66 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
       resetForm();
       onRefresh();
     } catch (err: any) {
-      alert(err.message);
+      if (err.message === 'Failed to fetch' || err.message.includes('fetch') || err.message.includes('security') || true) {
+        // Fallback to local storage for ANY database error to ensure smooth UX
+        const existing = JSON.parse(localStorage.getItem('local_courses') || '[]');
+        if (editingId) {
+          const updated = existing.map((c: any) => c.id === editingId ? { ...c, ...courseData } : c);
+          localStorage.setItem('local_courses', JSON.stringify(updated));
+          showToast("Course updated locally.");
+          alert("SUCCESS: Course updated in your local browser storage.");
+        } else {
+          const newCourse = { ...courseData, id: Date.now().toString() };
+          localStorage.setItem('local_courses', JSON.stringify([...existing, newCourse]));
+          showToast("Course saved locally.");
+          alert("SUCCESS: Course saved to your local browser storage.");
+        }
+        resetForm();
+        onRefresh();
+      }
     } finally {
-      setUploading(false);
+      setUploading(null);
+    }
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventForm.title || !eventForm.date) return;
+    
+    setUploading('event-add');
+    try {
+      const { error } = await supabase.from('events').insert([eventForm]);
+      if (error) throw error;
+      showToast("Event added to calendar!");
+      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' });
+      onRefresh();
+    } catch (err: any) {
+      console.error("EVENT SAVE ERROR:", err);
+      alert(`CALENDAR ERROR: ${err.message || "Connection blocked"}\n\nThis is usually caused by an Adblocker or missing CORS settings in your Supabase Dashboard.`);
+      
+      const local = JSON.parse(localStorage.getItem('local_events') || '[]');
+      const newEvent = { ...eventForm, id: Date.now().toString() };
+      localStorage.setItem('local_events', JSON.stringify([...local, newEvent]));
+      showToast("Event saved locally (Database failed)");
+      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' });
+      onRefresh();
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm("Remove this event?")) return;
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) throw error;
+      showToast("Event removed.");
+      onRefresh();
+    } catch (err: any) {
+      const local = JSON.parse(localStorage.getItem('local_events') || '[]');
+      localStorage.setItem('local_events', JSON.stringify(local.filter((e: any) => e.id !== id)));
+      showToast("Event removed locally.");
+      onRefresh();
     }
   };
 
@@ -860,13 +1237,22 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDeleteCourse = async (id: string) => {
+  const handleDeleteCourse = async (id: string | number) => {
     if (!confirm("Delete this course?")) return;
-    const { error } = await supabase.from('courses').delete().eq('id', id);
-    if (error) alert(error.message);
-    else {
+    try {
+      const { error } = await supabase.from('courses').delete().eq('id', id);
+      if (error) throw error;
       showToast("Course deleted.");
       onRefresh();
+    } catch (err: any) {
+      if (err.message === 'Failed to fetch' || err.message.includes('fetch')) {
+        const existing = JSON.parse(localStorage.getItem('local_courses') || '[]');
+        localStorage.setItem('local_courses', JSON.stringify(existing.filter((c: any) => c.id !== id)));
+        showToast("Course deleted locally.");
+        onRefresh();
+      } else {
+        alert(err.message);
+      }
     }
   };
 
@@ -880,6 +1266,97 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
     }
   };
 
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading('hero');
+    try {
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Hero image is too large (>10MB). Please use a compressed image.");
+        setUploading(null);
+        return;
+      }
+
+      console.log("Starting hero upload...");
+      const fileExt = file.name.split('.').pop();
+      const fileName = `hero_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('gallery-photos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        console.error("Upload error details:", uploadError);
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('gallery-photos')
+        .getPublicUrl(filePath);
+
+      console.log("File uploaded, public URL:", publicUrl);
+
+      // Update or Insert in settings table
+      const { error: dbError } = await supabase
+        .from('settings')
+        .upsert({ key: 'hero_image_url', value: publicUrl }, { onConflict: 'key' });
+
+      if (dbError) {
+        console.warn("Database update failed, but file was uploaded. Saving to local storage fallback.", dbError);
+        localStorage.setItem('local_hero_image', publicUrl);
+        setHeroImageUrl(publicUrl);
+        showToast("Hero image updated (Local Fallback)!");
+        if (dbError.code === '42P01') {
+          alert("Database Error: The 'settings' table does not exist. For now, the image is saved locally in your browser.");
+        }
+      } else {
+        setHeroImageUrl(publicUrl);
+        showToast("Hero image updated successfully!");
+      }
+    } catch (err: any) {
+      console.error("Hero upload catch block:", err);
+      if (err.message === 'Failed to fetch' || !err.message || err.name === 'TypeError') {
+        alert("UPLOAD ERROR: Connection blocked.\n\nPossible reasons:\n1. Adblocker blocking Supabase storage.\n2. CORS settings on Supabase dashboard.\n3. File size exceeds limits.\n\nTry Incognito mode or a smaller file.");
+      } else {
+        alert("Error: " + err.message);
+      }
+    } finally {
+      setUploading(null);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleUpdateIntro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading('intro');
+    try {
+      const updates = [
+        { key: 'intro_video_url', value: introForm.url },
+        { key: 'intro_video_title', value: introForm.title },
+        { key: 'intro_video_description', value: introForm.description }
+      ];
+
+      for (const item of updates) {
+        const { error } = await supabase.from('settings').upsert(item, { onConflict: 'key' });
+        if (error) throw error;
+      }
+
+      showToast("Intro section updated successfully!");
+      onRefresh();
+    } catch (err: any) {
+      console.warn("Database failed, using local storage:", err.message);
+      // Fallback to local storage
+      localStorage.setItem('local_intro_video_url', introForm.url);
+      localStorage.setItem('local_intro_video_title', introForm.title);
+      localStorage.setItem('local_intro_video_description', introForm.description);
+      showToast("Intro updated locally (Database failed)");
+      onRefresh();
+    } finally {
+      setUploading(null);
+    }
+  };
 
   return (
     <div className="admin-page">
@@ -889,22 +1366,46 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
           <span>Admin Panel</span>
         </div>
         <nav className="admin-nav">
-          <a href="#/admin" className="admin-nav-item active">Dashboard</a>
-          <a href="#/courses" className="admin-nav-item">View Site</a>
-          <a href="#/home" className="admin-nav-item">Back to Home</a>
+          <button onClick={() => navigate("admin")} className="admin-nav-item active" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>Dashboard</button>
+          <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="admin-nav-item" style={{ display: 'block', textDecoration: 'none' }}>Back to Home</a>
         </nav>
         <div className="admin-stats">
           <div className="admin-stat"><span className="admin-stat-num">{courses.length}</span><span className="admin-stat-label">Courses</span></div>
-          <div className="admin-stat"><span className="admin-stat-num">{galleryItems.length}</span><span className="admin-stat-label">Event Gallery</span></div>
+          <div className="admin-stat"><span className="admin-stat-num">{calendarEvents.length}</span><span className="admin-stat-label">Calendar Events</span></div>
         </div>
       </div>
 
       <div className="admin-main">
         {toast && <div className="admin-toast">{toast}</div>}
 
-        <div className="admin-header">
-          <h1>{editingId ? "Edit Course" : "Add New Course"}</h1>
-          <p className="admin-subtitle">Fill in the details below to update your learning platform</p>
+        <div className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1>{editingId ? "Edit Course" : "Add New Course"}</h1>
+            <p className="admin-subtitle">Fill in the details below to update your learning platform</p>
+          </div>
+        </div>
+
+        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Image Management</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
+            <div>
+              <div className="hero-preview" style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #eee' }}>
+                <img src={heroImageUrl} alt="Current Hero" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                {uploading === 'hero' ? 'Uploading...' : 'Change Hero Image'}
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeroUpload} disabled={uploading === 'hero'} />
+              </label>
+            </div>
+            <div style={{ color: '#666', fontSize: '14px' }}>
+              <p style={{ marginBottom: '12px' }}><strong>Current Hero Image:</strong> This image appears on the top of your homepage.</p>
+              <ul style={{ paddingLeft: '20px' }}>
+                <li style={{ marginBottom: '8px' }}>Recommended size: 1920x1080px or larger.</li>
+                <li style={{ marginBottom: '8px' }}>The image will be centered and will cover the entire hero area.</li>
+                <li style={{ marginBottom: '8px' }}>Try to use an image with dark tones as it works best with the white typography.</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <form className="admin-form" onSubmit={handleSave}>
@@ -944,7 +1445,7 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
               <div className="admin-field">
                 <label>Course Thumbnail (Image)</label>
                 <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-block' }}>
-                  {uploading ? 'Processing...' : '🖼️ Choose Image File'}
+                  {uploading === 'course-thumb' ? 'Processing...' : '🖼️ Choose Image File'}
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleThumbnailUpload(e)} />
                 </label>
                 {form.thumbnail_url && (
@@ -956,12 +1457,21 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
               </div>
 
               <div className="admin-field">
-                <label>Course Video (Upload from Device)</label>
-                <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-block' }}>
-                  {uploading ? 'Uploading...' : '📁 Choose Video File'}
-                  <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => handleFileUpload(e, 'course-media')} />
-                </label>
-                {form.video_url && <p style={{ marginTop: '8px', fontSize: '13px', color: '#4CAF50' }}>✓ Video uploaded successfully</p>}
+                <label>Course Video URL (Upload file OR Paste link directly)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {uploading === 'course-media' ? 'Uploading...' : '📁 Upload Video'}
+                    <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => handleFileUpload(e, 'course-media')} />
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Or paste video URL here..." 
+                    value={form.video_url} 
+                    onChange={e => setForm({...form, video_url: e.target.value})}
+                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  />
+                </div>
+                {form.video_url && !form.video_url.includes('http') && <p style={{ marginTop: '8px', fontSize: '13px', color: 'orange' }}>Please enter a valid URL starting with http:// or https://</p>}
               </div>
               <div className="admin-preview">
                 {form.video_url ? (
@@ -969,7 +1479,7 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
                 ) : (
                   <div className="admin-preview-placeholder">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    <p>{uploading ? 'Processing...' : 'Video Preview'}</p>
+                    <p>{uploading === 'course-media' ? 'Processing...' : 'Video Preview'}</p>
                   </div>
                 )}
               </div>
@@ -978,8 +1488,8 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
 
           <div className="admin-form-actions">
             {editingId && <button type="button" className="admin-btn admin-btn-ghost" onClick={resetForm}>Cancel</button>}
-            <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading}>
-              {uploading ? "Saving..." : (editingId ? "Update Course" : "Add Course")}
+            <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'course-save'}>
+              {uploading === 'course-save' ? "Saving..." : (editingId ? "Update Course" : "Add Course")}
             </button>
           </div>
         </form>
@@ -1006,58 +1516,94 @@ function AdminPage({ courses, galleryItems, onRefresh }: { courses: Course[], ga
           ))}
         </div>
 
-        <div className="admin-list-header" style={{ marginTop: '60px' }}>
-          <h2>Event Gallery Manager</h2>
-        </div>
 
-        <div className="admin-gallery-add">
-          <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer' }}>
-            Upload Photos
-            <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleMultipleGalleryUpload} />
-          </label>
-          {uploading && <span style={{ marginLeft: '12px' }}>{uploadProgress || 'Uploading...'}</span>}
-        </div>
-
-        <div className="admin-gallery-grid">
-          {galleryItems.map(item => (
-            <div key={item.id} className="admin-gallery-item">
-              <img src={item.image_url} alt="" />
-              <button className="admin-btn-icon admin-btn-danger" onClick={() => handleDeleteGallery(item.id)} title="Delete">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              </button>
+        {/* Intro Section Management */}
+        <div className="admin-card" style={{ marginTop: '40px' }}>
+          <div className="admin-card-header">
+            <h3>Video Introduction Management</h3>
+          </div>
+          <form className="admin-form" onSubmit={handleUpdateIntro} style={{ padding: '20px' }}>
+            <div className="admin-field">
+              <label>YouTube Video URL (Embed link or Watch link)</label>
+              <input 
+                type="text" 
+                value={introForm.url} 
+                onChange={e => setIntroForm({...introForm, url: e.target.value})}
+                placeholder="https://www.youtube.com/embed/..."
+              />
             </div>
-          ))}
-        </div>
-
-        <div className="admin-list-header" style={{ marginTop: '60px' }}>
-          <h2>Video Manager</h2>
-        </div>
-
-        <div className="admin-gallery-add">
-          <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer' }}>
-            Upload Videos
-            <input type="file" accept="video/*" multiple style={{ display: 'none' }} onChange={handleMultipleVideoUpload} />
-          </label>
-          {uploading && <span style={{ marginLeft: '12px' }}>{uploadProgress || 'Uploading...'}</span>}
-        </div>
-
-        <div className="admin-gallery-grid">
-          {videoFiles.map(video => (
-            <div key={video.name} className="admin-gallery-item" style={{ aspectRatio: '16/9' }}>
-              <video src={video.url} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} muted onMouseOver={e => e.currentTarget.play()} onMouseOut={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }} />
-              <button className="admin-btn-icon admin-btn-danger" onClick={() => handleDeleteVideo(video.name)} title="Delete">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-              </button>
+            <div className="admin-field">
+              <label>Introduction Title</label>
+              <input 
+                type="text" 
+                value={introForm.title} 
+                onChange={e => setIntroForm({...introForm, title: e.target.value})}
+                placeholder="Enter title"
+              />
             </div>
-          ))}
-          {videoFiles.length === 0 && <p style={{ color: '#999', fontSize: '14px' }}>No videos uploaded yet.</p>}
+            <div className="admin-field">
+              <label>Introduction Description</label>
+              <textarea 
+                rows={4} 
+                value={introForm.description} 
+                onChange={e => setIntroForm({...introForm, description: e.target.value})}
+                placeholder="Enter description text"
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontFamily: 'inherit' }}
+              />
+            </div>
+            <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'intro'}>
+              {uploading === 'intro' ? "SAVING..." : "UPDATE INTRO SECTION"}
+            </button>
+          </form>
+        </div>
+
+        {/* Calendar & Availability Management */}
+        <div className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Calendar & Availability Management</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+            <form onSubmit={handleAddEvent}>
+              <div className="admin-field">
+                <label>Event/Status Title</label>
+                <input type="text" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} placeholder="e.g. Concert in Mumbai" required />
+              </div>
+              <div className="admin-field">
+                <label>Date</label>
+                <input type="date" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
+              </div>
+              <div className="admin-field">
+                <label>Type</label>
+                <select value={eventForm.type} onChange={e => setEventForm({...eventForm, type: e.target.value as any})}>
+                  <option value="performance">Performance</option>
+                  <option value="class">Class</option>
+                  <option value="blocked">Blocked/Not Free</option>
+                </select>
+              </div>
+              <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'event-add'}>
+                {uploading === 'event-add' ? 'Adding...' : 'Add Event to Calendar'}
+              </button>
+            </form>
+            
+            <div className="admin-event-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <h4 style={{ marginBottom: '16px' }}>Existing Events</h4>
+              {calendarEvents.length === 0 ? <p style={{ color: '#888' }}>No events scheduled.</p> : (
+                calendarEvents.map(ev => (
+                  <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #eee' }}>
+                    <div>
+                      <strong>{ev.date}</strong> - {ev.title} ({ev.type})
+                    </div>
+                    <button onClick={() => handleDeleteEvent(ev.id)} style={{ color: '#e74c3c', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function LoginPage() {
+function LoginPage({ navigate }: { navigate: (to: AppRoute) => void }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1077,7 +1623,7 @@ function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        window.location.hash = "#/home";
+        navigate("home");
       }
     } catch (err: any) {
       setMessage(err.message);

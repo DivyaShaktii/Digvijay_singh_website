@@ -152,6 +152,7 @@ a {
   font-size: 13px;
   letter-spacing: 0.15em;
   font-family: var(--font-sans);
+  color: inherit;
 }
 
 /* Dark Sections */
