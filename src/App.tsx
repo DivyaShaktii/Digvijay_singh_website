@@ -257,8 +257,8 @@ function App() {
       <main>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} />}
         {route === "biography" && <BiographyPage />}
-        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} />}
-        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} heroImageUrl={heroImageUrl} />}
+        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} />}
         {route === "contact" && <ContactPage />}
         {route === "admin" && (isUserAdmin ? (
           <AdminPage 
@@ -419,7 +419,15 @@ function BiographyPage() {
 
 
 
-function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh }: { navigate: (to: AppRoute) => void, courses: Course[], user: any, enrollments: string[], calendarEvents: CalendarEvent[], onRefresh: () => void }) {
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh, heroImageUrl }: { 
+  navigate: (to: AppRoute) => void, 
+  courses: Course[], 
+  user: any, 
+  enrollments: string[], 
+  calendarEvents: CalendarEvent[],
+  onRefresh: () => void,
+  heroImageUrl: string
+}) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [payingFor, setPayingFor] = useState<string | null>(null);
 
@@ -693,8 +701,8 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
   );
 }
 
-function OrganizersCornerPage({ images: dbImages, calendarEvents }: { images: GalleryImage[], calendarEvents: CalendarEvent[] }) {
-  const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
+function OrganizersCornerPage({ images, calendarEvents, navigate }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void }) {
+  const displayImages = images.length > 0 ? images.map(img => img.image_url) : [];
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
   const selectedDayEvents = calendarEvents.filter(e => e.date === selectedDate);
