@@ -26,7 +26,7 @@ interface CalendarEvent {
   id: string;
   date: string; // YYYY-MM-DD
   title: string;
-  type: 'performance' | 'class' | 'blocked';
+  type: 'performance' | 'class' | 'blocked' | 'available';
 }
 
 interface Enrollment {
@@ -94,11 +94,13 @@ const images = {
 function App() {
   const [route, setRoute] = useState<AppRoute>(() => {
     const path = window.location.pathname.replace("/", "") || "home";
-    return ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"].includes(path) ? path as AppRoute : "home";
+    const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"];
+    return routes.includes(path) ? path as AppRoute : "home";
   });
 
   const navigate = (to: AppRoute) => {
-    window.history.pushState({}, "", to === "home" ? "/" : `/${to}`);
+    const path = to === "home" ? "/" : `/${to}`;
+    window.history.pushState({}, "", path);
     setRoute(to);
     window.scrollTo(0, 0);
   };
@@ -127,6 +129,7 @@ function App() {
     
     try {
       isFetching.current = true;
+      // Only show loading spinner on the very first visit
       if (isInitialLoad.current) setLoading(true);
 
       const [coursesRes, galleryRes, settingsRes, eventsRes] = await Promise.all([
@@ -136,15 +139,9 @@ function App() {
         supabase.from('events').select('*').order('date', { ascending: true })
       ]);
 
-      if (coursesRes.error) {
-        const local = JSON.parse(localStorage.getItem('local_courses') || '[]');
-        setCourses(local);
-      } else {
-        setCourses(coursesRes.data || []);
-      }
-
+      if (!coursesRes.error) setCourses(coursesRes.data || []);
       if (!galleryRes.error) setGalleryItems(galleryRes.data || []);
-
+      
       if (!settingsRes.error && settingsRes.data) {
         const settings = settingsRes.data;
         const hero = settings.find(s => s.key === 'hero_image_url');
@@ -159,17 +156,7 @@ function App() {
         setIntroVideo(newIntro);
       }
 
-      if (eventsRes.error) {
-        const local = JSON.parse(localStorage.getItem('local_events') || '[]');
-        setCalendarEvents(local);
-      } else {
-        setCalendarEvents(eventsRes.data || []);
-      }
-
-      if (user) {
-        const { data: enrollData } = await supabase.from('enrollments').select('course_id').eq('user_id', user.id);
-        if (enrollData) setEnrollments(enrollData.map(e => e.course_id));
-      }
+      if (!eventsRes.error) setCalendarEvents(eventsRes.data || []);
 
       isInitialLoad.current = false;
     } catch (err) {
@@ -178,10 +165,22 @@ function App() {
       setLoading(false);
       isFetching.current = false;
     }
+  }, []); // Remove user dependency to prevent loop
+
+  // Fetch enrollments separately when user changes
+  useEffect(() => {
+    const fetchEnrollments = async () => {
+      if (user) {
+        const { data } = await supabase.from('enrollments').select('course_id').eq('user_id', user.id);
+        if (data) setEnrollments(data.map(e => e.course_id));
+      } else {
+        setEnrollments([]);
+      }
+    };
+    fetchEnrollments();
   }, [user]);
 
   useEffect(() => {
-    // Initial Session Check
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user ?? null;
@@ -196,35 +195,35 @@ function App() {
       const newUser = session?.user ?? null;
       setUser(newUser);
       setIsUserAdmin(newUser?.email === "digvijayflute@gmail.com" || newUser?.email === "janhavikolekar280@gmail.com");
-      // Only re-fetch if user changed
       if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
         fetchData();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchData]);
+  }, []); // Only run once on mount
 
   useEffect(() => {
-    const handlePathChange = () => {
+    const handlePopState = () => {
       const path = window.location.pathname.replace("/", "") || "home";
-      setRoute(["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"].includes(path) ? path as AppRoute : "home");
-      window.scrollTo(0, 0);
+      const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"];
+      if (routes.includes(path)) {
+        setRoute(path as AppRoute);
+      }
     };
 
+    window.addEventListener("popstate", handlePopState);
+    
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-
-    window.addEventListener("popstate", handlePathChange);
     window.addEventListener("scroll", handleScroll);
-    document.title = `${artistProfile.name} | ${artistProfile.role}`;
 
     return () => {
-      window.removeEventListener("popstate", handlePathChange);
+      window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("scroll", handleScroll);
     };
-  }, [fetchData]);
+  }, []); // Static effect
 
   const isDarkMode = route === "home" || route === "biography" || route === "FluteRoots" || route === "organizersCorner" || route === "contact";
   const isAdmin = route === "admin";
@@ -234,7 +233,9 @@ function App() {
       {!isAdmin && (
         <header className={`site-header ${scrolled ? "scrolled" : ""} ${!scrolled && isDarkMode ? "dark-mode" : ""}`}>
           <div className="nav-container">
-            <div className="header-placeholder" style={{ flex: 1 }}></div>
+            <div className="site-logo" onClick={() => navigate("home")} style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center' }}>
+              <span className="logo-text serif-title" style={{ fontSize: '22px', color: scrolled ? '#000' : (isDarkMode ? 'var(--gold)' : '#000'), transition: 'color 0.3s' }}>Flute Roots</span>
+            </div>
             <nav className="site-nav">
               <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="nav-link">Home</a>
               <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className="nav-link">Courses</a>
@@ -255,9 +256,9 @@ function App() {
       )}
 
       <main>
-        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} />}
+        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage />}
-        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} heroImageUrl={heroImageUrl} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} />}
         {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} />}
         {route === "contact" && <ContactPage />}
         {route === "admin" && (isUserAdmin ? (
@@ -284,6 +285,7 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-content">
+        <div className="footer-logo serif-title" style={{ fontSize: '20px', color: 'var(--gold)', marginBottom: '16px' }}>Flute Roots</div>
         <p className="text-serif text-italic">Stay Connected</p>
         <div className="social-icons">
           <a href="https://www.youtube.com/@digvijaysinhchauhan" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="YouTube">
@@ -301,11 +303,12 @@ function Footer() {
   );
 }
 
-function HomePage({ navigate, galleryItems, heroImageUrl, introVideo }: { 
+function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEvents }: { 
   navigate: (to: AppRoute) => void,
   galleryItems: GalleryImage[], 
   heroImageUrl: string,
-  introVideo: { url: string, title: string, description: string }
+  introVideo: { url: string, title: string, description: string },
+  calendarEvents: CalendarEvent[]
 }) {
   const { url, title, description } = introVideo;
   const videoId = getYouTubeId(url);
@@ -358,16 +361,24 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo }: {
       <section className="intro-section" style={{ padding: '80px 0', backgroundColor: '#fff' }}>
         <div className="container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'center' }}>
           <div className="intro-video" style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', aspectRatio: '16/9', background: '#000' }}>
-                <iframe 
-                  src={embedUrl}
-                  title={title}
-                  style={{ width: '100%', height: '100%', border: 'none' }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                  allowFullScreen
-                ></iframe>
+                {videoId ? (
+                  <iframe 
+                    src={embedUrl}
+                    title={title}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowFullScreen
+                  ></iframe>
+                ) : (
+                  <video 
+                    src={url} 
+                    controls 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
           </div>
           <div className="intro-content">
-            <span className="section-label" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px', display: 'block', marginBottom: '12px' }}>Introduction</span>
+            <span className="section-label" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px', display: 'block', marginBottom: '12px' }}>Introductory Video</span>
             <h2 className="serif-title" style={{ fontSize: '42px', marginBottom: '24px' }}>{title}</h2>
             <p style={{ color: '#666', lineHeight: '1.8', fontSize: '18px' }}>{description}</p>
           </div>
@@ -419,17 +430,19 @@ function BiographyPage() {
 
 
 
-function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh, heroImageUrl }: { 
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh, heroImageUrl, loading }: { 
   navigate: (to: AppRoute) => void, 
   courses: Course[], 
   user: any, 
   enrollments: string[], 
   calendarEvents: CalendarEvent[],
   onRefresh: () => void,
-  heroImageUrl: string
+  heroImageUrl: string,
+  loading: boolean
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [payingFor, setPayingFor] = useState<string | null>(null);
+  const [checkoutCourse, setCheckoutCourse] = useState<Course | null>(null);
 
   // Fetch signed URLs for enrolled courses
   useEffect(() => {
@@ -466,61 +479,81 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onR
         onRefresh();
       } catch (err) {
         alert("Enrollment failed. Please try again.");
-      } finally {
-        setPayingFor(null);
       }
       return;
     }
 
+    setCheckoutCourse(course);
+  };
+
+  const startRazorpayPayment = async (course: Course) => {
+    setCheckoutCourse(null);
     setPayingFor(course.id);
     
-    const options = {
-      // IMPORTANT: Replace the string below with your real Key ID from Razorpay Dashboard
-      key: "rzp_test_YOUR_KEY_HERE", 
-      amount: priceValue * 100, // in paisa
-      currency: "INR",
-      name: "Flute Roots",
-      description: `Enrollment: ${course.title}`,
-      image: heroImageUrl || "/vite.svg",
-      handler: async function (response: any) {
-        // Payment success
-        const { error } = await supabase
-          .from('enrollments')
-          .insert([{ 
-            user_id: user.id, 
-            course_id: course.id,
-            payment_id: response.razorpay_payment_id 
-          }]);
+    const priceValue = course.price ? parseInt(course.price.replace(/[^0-9]/g, "")) : 0;
+    
+    try {
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_placeholder", 
+        amount: priceValue * 100, // in paisa
+        currency: "INR",
+        name: "Flute Roots",
+        description: `Enrollment: ${course.title}`,
+        image: heroImageUrl || "/vite.svg",
+        handler: async function (response: any) {
+          try {
+            // Payment success
+            const { error } = await supabase
+              .from('enrollments')
+              .insert([{ 
+                user_id: user.id, 
+                course_id: course.id,
+                payment_id: response.razorpay_payment_id 
+              }]);
 
-        if (error) {
-          alert("Payment recorded, but enrollment failed. Contact admin.");
-          console.error(error);
-        } else {
-          alert("Congratulations! You are now enrolled.");
-          onRefresh();
+            if (error) throw error;
+            alert("Congratulations! You are now enrolled.");
+            onRefresh();
+          } catch (err) {
+            alert("Payment recorded, but enrollment failed. Please contact support.");
+            console.error(err);
+          } finally {
+            setPayingFor(null);
+          }
+        },
+        prefill: {
+          email: user.email,
+          contact: "" 
+        },
+        notes: {
+          owner_email: "digvijayflute@gmail.com" 
+        },
+        theme: {
+          color: "#c7a17a",
+        },
+        modal: {
+          ondismiss: function() { 
+            setPayingFor(null); 
+          }
         }
-        setPayingFor(null);
-      },
-      prefill: {
-        email: user.email,
-        contact: "" 
-      },
-      notes: {
-        owner_email: "digvijayflute@gmail.com" 
-      },
-      theme: {
-        color: "#c7a17a",
-      },
-      modal: {
-        ondismiss: function() { setPayingFor(null); }
-      }
-    };
+      };
 
-    if ((window as any).Razorpay) {
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    } else {
-      alert("Payment gateway not loaded. Please refresh.");
+      if ((window as any).Razorpay) {
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (response: any) {
+          alert("Payment Failed: " + response.error.description);
+          setPayingFor(null);
+        });
+        rzp.open();
+        
+        // Safety timeout
+        setTimeout(() => setPayingFor(prev => prev === course.id ? null : prev), 10000);
+      } else {
+        throw new Error("Razorpay SDK not loaded");
+      }
+    } catch (err) {
+      console.error("Razorpay Error:", err);
+      alert("Could not start payment system. Please try again.");
       setPayingFor(null);
     }
   };
@@ -598,13 +631,6 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onR
                             course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'
                           )}
                         </span>
-                        {!isEnrolled && course.price && parseInt(course.price.replace(/[^0-9]/g, "")) > 0 && (
-                          <div className="payment-methods-mini">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg" alt="UPI" title="UPI Supported" />
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" title="Cards Supported" />
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" />
-                          </div>
-                        )}
                       </div>
                       {!isEnrolled && (
                         <button 
@@ -627,12 +653,6 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onR
           </div>
         )}
         
-        {!loading && displayCourses.length > 0 && (
-          <div className="secure-checkout-badge">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Secure 256-bit SSL Encrypted Payment via Razorpay
-          </div>
-        )}
       </section>
 
       <section className="courses-cta">
@@ -647,6 +667,58 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onR
           <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="courses-cta-btn">Enquire for Slot</a>
         </div>
       </section>
+
+      {/* Udemy-style Checkout Modal */}
+      {checkoutCourse && (
+        <div className="checkout-modal-overlay">
+          <div className="checkout-modal">
+            <button className="close-checkout" onClick={() => setCheckoutCourse(null)}>&times;</button>
+            <div className="checkout-content">
+              <div className="checkout-header">
+                <h2>Checkout</h2>
+                <p>Complete your enrollment for this course</p>
+              </div>
+              
+              <div className="checkout-item">
+                <div className="checkout-item-thumb">
+                  {checkoutCourse.thumbnail_url ? (
+                    <img src={checkoutCourse.thumbnail_url} alt={checkoutCourse.title} />
+                  ) : (
+                    <div className="checkout-item-no-thumb">🎶</div>
+                  )}
+                </div>
+                <div className="checkout-item-info">
+                  <h3>{checkoutCourse.title}</h3>
+                  <p>{checkoutCourse.level} • {checkoutCourse.duration}</p>
+                </div>
+                <div className="checkout-item-price">
+                  {checkoutCourse.price ? (checkoutCourse.price.startsWith('₹') ? checkoutCourse.price : `₹${checkoutCourse.price}`) : 'Free'}
+                </div>
+              </div>
+              
+              <div className="checkout-summary">
+                <div className="summary-row">
+                  <span>Course Price</span>
+                  <span>{checkoutCourse.price ? (checkoutCourse.price.startsWith('₹') ? checkoutCourse.price : `₹${checkoutCourse.price}`) : 'Free'}</span>
+                </div>
+                <div className="summary-row total">
+                  <span>Total</span>
+                  <span>{checkoutCourse.price ? (checkoutCourse.price.startsWith('₹') ? checkoutCourse.price : `₹${checkoutCourse.price}`) : 'Free'}</span>
+                </div>
+              </div>
+              
+              
+              <button 
+                className="complete-payment-btn"
+                onClick={() => startRazorpayPayment(checkoutCourse)}
+                disabled={payingFor === checkoutCourse.id}
+              >
+                {payingFor === checkoutCourse.id ? "Processing..." : "Complete Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -692,6 +764,7 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
           const isToday = day && new Date().toDateString() === new Date(year, month, day).toDateString();
           const dayEvents = events.filter(e => e.date === dateStr);
           const isBlocked = dayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
+          const isAvailable = dayEvents.some(e => e.type === 'available' || e.type === 'class');
           
           return (
             <div 
@@ -710,8 +783,15 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
               }}
             >
               {day}
-              {day && isBlocked && !isSelected && (
-                <div style={{ position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--gold)' }}></div>
+              {!isSelected && (
+                <div style={{ position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '2px' }}>
+                  {isBlocked && (
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--gold)' }}></div>
+                  )}
+                  {isAvailable && (
+                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#4CAF50' }}></div>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -721,66 +801,21 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
   );
 }
 
-function OrganizersCornerPage({ images, calendarEvents, navigate }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void }) {
-  const displayImages = images.length > 0 ? images.map(img => img.image_url) : [];
+function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void }) {
+  const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [showSlots, setShowSlots] = useState(false);
   
   const selectedDayEvents = calendarEvents.filter(e => e.date === selectedDate);
   const isBlocked = selectedDayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
+  const availableSlots = selectedDayEvents.filter(e => e.type === 'available' || e.type === 'class');
+  const bookedEvents = selectedDayEvents.filter(e => e.type === 'blocked' || e.type === 'performance');
 
   return (
     <>
       <section className="page-hero">
         <h1 className="page-hero-title">Organizers Corner</h1>
         <p className="page-hero-subtitle">Check availability and upcoming performances</p>
-      </section>
-
-      {/* Upcoming Event Band / Calendar Section */}
-      <section className="calendar-band" style={{ padding: '60px 0', background: '#fcfaf7' }}>
-        <div className="container">
-          <div className="calendar-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
-            <div className="calendar-info">
-              <span className="eyebrow">Availability</span>
-              <h2 className="serif-title" style={{ fontSize: '36px', marginBottom: '24px' }}>Upcoming Schedule</h2>
-              <p style={{ color: '#666', lineHeight: '1.8', marginBottom: '32px' }}>
-                Organizers can check my availability for concerts, workshops, and private sessions. Use the calendar to see booked dates and open slots.
-              </p>
-              <div className="event-details-card" style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', borderTop: '4px solid var(--gold)' }}>
-                <h4 style={{ marginBottom: '24px', color: '#2c3e50', fontFamily: 'var(--font-serif)', fontSize: '20px' }}>
-                  {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </h4>
-                
-                {selectedDayEvents.length > 0 ? (
-                  selectedDayEvents.map(e => (
-                    <div key={e.id} style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', borderLeft: '4px solid var(--gold)' }}>
-                      <span style={{ display: 'block', fontSize: '12px', color: '#c5a059', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Booked</span>
-                      <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>
-                        Digvijaysinh is {e.title}
-                      </strong>
-                      <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
-                        This date is currently reserved for a {e.type} and is unavailable for new bookings.
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="status-indicator">
-                    <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Available</span>
-                    <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Available for Sessions</strong>
-                    <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
-                      This date is currently open for concerts, workshops, or private flute sessions.
-                    </p>
-                    <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center' }}>
-                      Contact for a Session
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="calendar-wrapper">
-               <SimpleCalendar onDateSelect={setSelectedDate} selectedDate={selectedDate} events={calendarEvents} />
-            </div>
-          </div>
-        </div>
       </section>
 
       <section style={{ padding: '80px 0', background: '#fcfaf7' }}>
@@ -810,6 +845,97 @@ function OrganizersCornerPage({ images, calendarEvents, navigate }: { images: an
         <p className="quote-text text-serif text-italic">
           "The bansuri is an extension of the breath, and through it, one breathes life into the silence."
         </p>
+      </section>
+
+      {/* Upcoming Event Band / Calendar Section */}
+      <section className="calendar-band" style={{ padding: '60px 0', background: '#fcfaf7' }}>
+        <div className="container">
+          <div className="calendar-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
+            <div className="calendar-info">
+              <span className="eyebrow">Availability</span>
+              <h2 className="serif-title" style={{ fontSize: '36px', marginBottom: '24px' }}>Upcoming Schedule</h2>
+              <p style={{ color: '#666', lineHeight: '1.8', marginBottom: '32px' }}>
+                Organizers can check my availability for concerts, workshops, and private sessions. Use the calendar to see booked dates and open slots.
+              </p>
+                <div className="event-details-card" style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', borderTop: '4px solid var(--gold)' }}>
+                  <h4 style={{ marginBottom: '24px', color: '#2c3e50', fontFamily: 'var(--font-serif)', fontSize: '20px' }}>
+                    {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </h4>
+                  
+                  {selectedDayEvents.length > 0 ? (
+                    <div className="events-list">
+                      {/* Booked Events Section */}
+                      {bookedEvents.map(e => (
+                        <div key={e.id} style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', borderLeft: '4px solid var(--gold)', marginBottom: '16px' }}>
+                          <span style={{ display: 'block', fontSize: '12px', color: '#c5a059', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Booked</span>
+                          <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Digvijaysinh is {e.title}</strong>
+                          <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>This date is currently reserved for a {e.type}.</p>
+                        </div>
+                      ))}
+
+                      {/* Available Slots Section with Dropdown */}
+                      {availableSlots.length > 0 && (
+                        <div className="available-slots-container" style={{ marginBottom: '16px' }}>
+                          <button 
+                            onClick={() => setShowSlots(!showSlots)}
+                            style={{ 
+                              width: '100%', 
+                              padding: '16px', 
+                              background: '#f2fff2', 
+                              border: '1px solid #4CAF50', 
+                              borderRadius: '8px', 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div>
+                              <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Slots Available</span>
+                              <strong style={{ display: 'block', fontSize: '16px', color: '#2c3e50' }}>{availableSlots.length} Slots Found</strong>
+                            </div>
+                            <span style={{ fontSize: '20px', transition: 'transform 0.3s', transform: showSlots ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+                          </button>
+                          
+                          {showSlots && (
+                            <div className="slots-dropdown" style={{ marginTop: '8px', paddingLeft: '8px', borderLeft: '2px solid #4CAF50' }}>
+                              {availableSlots.map((e, idx) => (
+                                <div key={e.id} style={{ padding: '12px', borderBottom: idx === availableSlots.length - 1 ? 'none' : '1px solid #eee' }}>
+                                  <strong style={{ display: 'block', fontSize: '15px', color: '#2c3e50' }}>{e.title}</strong>
+                                  <span style={{ fontSize: '12px', color: '#666' }}>{e.type === 'class' ? 'Class Session' : 'Individual Slot'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!isBlocked && (
+                        <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center', marginTop: '8px' }}>
+                          Contact to Book a Slot
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="status-indicator">
+                      <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Slots Available</span>
+                      <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Available for Sessions</strong>
+                      <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
+                        This date is currently open for concerts, workshops, or private flute sessions.
+                      </p>
+                      <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center' }}>
+                        Contact for a Session
+                      </a>
+                    </div>
+                  )}
+                </div>
+            </div>
+            <div className="calendar-wrapper">
+               <SimpleCalendar onDateSelect={setSelectedDate} selectedDate={selectedDate} events={calendarEvents} />
+            </div>
+          </div>
+        </div>
       </section>
     </>
   );
@@ -897,8 +1023,9 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   user: any
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "" });
-  const [eventForm, setEventForm] = useState({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' as const });
+  const [eventForm, setEventForm] = useState({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' as const });
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -929,81 +1056,68 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucket: 'course-media' | 'gallery-photos') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setUploading(bucket === 'course-media' ? 'course-media' : 'gallery');
     
     try {
-      // DEBUG: Log current session
-      console.log("Current user for upload:", user);
       if (!user) {
         alert("UPLOAD ERROR: Not logged in. Please login to upload files.");
         setUploading(null);
         return;
       }
 
-      // 1. Pre-check: File Size
-      if (file.size > 50 * 1024 * 1024) {
-        const proceed = confirm(`WARNING: This file is ${Math.round(file.size / (1024 * 1024))}MB. Supabase free tier often blocks uploads larger than 50MB.\n\nTry anyway?`);
-        if (!proceed) {
-          setUploading(null);
-          return;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(`Processing ${i + 1}/${files.length}...`);
+
+        // 1. Pre-check: File Size
+        if (file.size > 50 * 1024 * 1024) {
+          const proceed = confirm(`WARNING: File "${file.name}" is ${Math.round(file.size / (1024 * 1024))}MB. Supabase free tier often blocks uploads larger than 50MB.\n\nTry anyway?`);
+          if (!proceed) continue;
+        }
+
+        // 2. Sanitize Filename
+        const fileExt = file.name.split('.').pop();
+        const cleanBaseName = file.name.split('.').slice(0, -1).join('_').replace(/[^a-zA-Z0-9]/g, '_');
+        const fileName = `${Date.now()}_${cleanBaseName}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: file.type || undefined
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(fileName);
+
+        if (bucket === 'course-media') {
+          setForm({ ...form, video_url: publicUrl });
+          showToast("Video uploaded successfully!");
+        } else {
+          const { error: dbError } = await supabase
+            .from('gallery')
+            .insert([{ image_url: publicUrl, display_order: galleryItems.length + i }]);
+          if (dbError) throw dbError;
         }
       }
 
-      // 2. Sanitize Filename (Aggressive)
-      const fileExt = file.name.split('.').pop();
-      const cleanBaseName = file.name.split('.').slice(0, -1).join('_').replace(/[^a-zA-Z0-9]/g, '_');
-      const fileName = `${Date.now()}_${cleanBaseName}.${fileExt}`;
-      
-      console.log(`Uploading ${file.name} -> ${fileName} (${Math.round(file.size / 1024)} KB) to ${bucket}...`);
-      
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type || undefined
-        });
-
-      if (uploadError) {
-        console.error("Supabase Storage Error Object:", uploadError);
-        throw uploadError;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
-
-      if (bucket === 'course-media') {
-        setForm({ ...form, video_url: publicUrl });
-        showToast("Video uploaded successfully!");
-      } else {
-        const { error: dbError } = await supabase
-          .from('gallery')
-          .insert([{ image_url: publicUrl, display_order: galleryItems.length }]);
-        if (dbError) throw dbError;
+      if (bucket === 'gallery-photos') {
         onRefresh();
-        showToast("Image added to gallery!");
+        showToast(`${files.length} images added to gallery!`);
       }
     } catch (err: any) {
-      console.error("DIAGNOSTIC UPLOAD ERROR:", err);
-      
-      // Fallback: Use Local URL for preview
-      const localUrl = URL.createObjectURL(file);
-      setForm({ ...form, video_url: localUrl });
-      
-      let errorMsg = err.message || "Unknown error";
-      const errorCode = err.status || err.code || "No Code";
-      
-      if (err.name === 'TypeError' || err.message === 'Failed to fetch') {
-        alert(`NETWORK ERROR (CORS or Adblock):\n\nYour browser blocked the upload to Supabase.\n\n1. Disable Adblockers\n2. Check Supabase Storage -> Settings -> CORS\n3. Use http://localhost:5173 (not 127.0.0.1)`);
-      } else {
-        alert(`SUPABASE ERROR:\nMessage: ${errorMsg}\nCode: ${errorCode}\n\nThis usually means the 'course-media' bucket is missing or private.`);
-      }
+      console.error("Bulk Upload Error:", err);
+      alert("Error during upload: " + err.message);
     } finally {
       setUploading(null);
+      setUploadProgress("");
       if (e.target) e.target.value = "";
     }
   };
@@ -1215,24 +1329,49 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
     
     setUploading('event-add');
     try {
-      const { error } = await supabase.from('events').insert([eventForm]);
-      if (error) throw error;
-      showToast("Event added to calendar!");
-      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' });
+      if (editingEventId) {
+        const { error } = await supabase.from('events').update(eventForm).eq('id', editingEventId);
+        if (error) throw error;
+        showToast("Event updated!");
+      } else {
+        const { error } = await supabase.from('events').insert([eventForm]);
+        if (error) throw error;
+        showToast("Event added to calendar!");
+      }
+      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
+      setEditingEventId(null);
       onRefresh();
     } catch (err: any) {
       console.error("EVENT SAVE ERROR:", err);
-      alert(`CALENDAR ERROR: ${err.message || "Connection blocked"}\n\nThis is usually caused by an Adblocker or missing CORS settings in your Supabase Dashboard.`);
       
       const local = JSON.parse(localStorage.getItem('local_events') || '[]');
-      const newEvent = { ...eventForm, id: Date.now().toString() };
-      localStorage.setItem('local_events', JSON.stringify([...local, newEvent]));
-      showToast("Event saved locally (Database failed)");
-      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'performance' });
+      if (editingEventId) {
+        const updated = local.map((ev: any) => ev.id === editingEventId ? { ...ev, ...eventForm } : ev);
+        localStorage.setItem('local_events', JSON.stringify(updated));
+        showToast("Event updated locally");
+      } else {
+        const newEvent = { ...eventForm, id: Date.now().toString() };
+        localStorage.setItem('local_events', JSON.stringify([...local, newEvent]));
+        showToast("Event saved locally");
+      }
+      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
+      setEditingEventId(null);
       onRefresh();
     } finally {
       setUploading(null);
     }
+  };
+
+  const handleEditEvent = (ev: CalendarEvent) => {
+    setEditingEventId(ev.id);
+    setEventForm({
+      title: ev.title,
+      date: ev.date,
+      type: ev.type
+    });
+    // Scroll to the event form
+    const el = document.getElementById('calendar-management-card');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -1413,6 +1552,7 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
           </div>
         </div>
 
+        {/* Hero Image Management - RESTORED TO TOP WITH PREVIOUS STYLING */}
         <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
           <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Image Management</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
@@ -1435,6 +1575,8 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
             </div>
           </div>
         </div>
+
+
 
         <form className="admin-form" onSubmit={handleSave}>
           <div className="admin-form-grid">
@@ -1548,7 +1690,7 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
         {/* Intro Section Management */}
         <div className="admin-card" style={{ marginTop: '40px' }}>
           <div className="admin-card-header">
-            <h3>Video Introduction Management</h3>
+            <h3>Introductory Video Management</h3>
           </div>
           <form className="admin-form" onSubmit={handleUpdateIntro} style={{ padding: '20px' }}>
             <div className="admin-field">
@@ -1586,13 +1728,19 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
         </div>
 
         {/* Calendar & Availability Management */}
-        <div className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
+        <div id="calendar-management-card" className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
           <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Calendar & Availability Management</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
             <form onSubmit={handleAddEvent}>
               <div className="admin-field">
-                <label>Event/Status Title</label>
-                <input type="text" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} placeholder="e.g. Concert in Mumbai" required />
+                <label>{eventForm.type === 'available' ? 'Slot Details / Availability' : 'Event Title'}</label>
+                <input 
+                  type="text" 
+                  value={eventForm.title} 
+                  onChange={e => setEventForm({...eventForm, title: e.target.value})} 
+                  placeholder={eventForm.type === 'available' ? 'e.g. 12pm-1pm Available' : 'e.g. Concert in Mumbai'} 
+                  required 
+                />
               </div>
               <div className="admin-field">
                 <label>Date</label>
@@ -1601,29 +1749,77 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
               <div className="admin-field">
                 <label>Type</label>
                 <select value={eventForm.type} onChange={e => setEventForm({...eventForm, type: e.target.value as any})}>
-                  <option value="performance">Performance</option>
-                  <option value="class">Class</option>
-                  <option value="blocked">Blocked/Not Free</option>
+                  <option value="available">Specific Slots (Available)</option>
+                  <option value="performance">Performance (Booked)</option>
                 </select>
               </div>
-              <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'event-add'}>
-                {uploading === 'event-add' ? 'Adding...' : 'Add Event to Calendar'}
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" className="admin-btn admin-btn-primary" style={{ flex: 1 }} disabled={uploading === 'event-add'}>
+                  {uploading === 'event-add' ? 'Saving...' : (editingEventId ? 'Update Event/Slot' : 'Add to Calendar')}
+                </button>
+                {editingEventId && (
+                  <button 
+                    type="button" 
+                    className="admin-btn admin-btn-ghost" 
+                    onClick={() => {
+                      setEditingEventId(null);
+                      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </form>
             
             <div className="admin-event-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              <h4 style={{ marginBottom: '16px' }}>Existing Events</h4>
+              <h4 style={{ marginBottom: '16px' }}>Existing Events/Slots</h4>
               {calendarEvents.length === 0 ? <p style={{ color: '#888' }}>No events scheduled.</p> : (
                 calendarEvents.map(ev => (
-                  <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #eee' }}>
-                    <div>
-                      <strong>{ev.date}</strong> - {ev.title} ({ev.type})
+                  <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #eee', background: editingEventId === ev.id ? '#fff9f2' : 'transparent' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{ev.date}</strong> - {ev.title} <span style={{ fontSize: '12px', color: '#888', marginLeft: '5px' }}>({ev.type})</span>
                     </div>
-                    <button onClick={() => handleDeleteEvent(ev.id)} style={{ color: '#e74c3c', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => handleEditEvent(ev)} style={{ color: 'var(--gold)', border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Edit</button>
+                      <button onClick={() => handleDeleteEvent(ev.id)} style={{ color: '#e74c3c', border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px' }}>Delete</button>
+                    </div>
                   </div>
                 ))
               )}
             </div>
+          </div>
+        </div>
+
+
+
+        {/* Gallery Management */}
+        <div className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Gallery Management (Organizers Corner)</h3>
+          <div style={{ marginBottom: '32px', padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px dashed var(--gold)' }}>
+            <p style={{ marginBottom: '16px', fontWeight: '600' }}>Add New Performance Photo <span style={{ fontWeight: '400', fontSize: '12px', color: '#888', marginLeft: '8px' }}>(You can select multiple photos at once)</span></p>
+            <input 
+              type="file" 
+              accept="image/*" 
+              multiple
+              onChange={(e) => handleFileUpload(e, 'gallery-photos')} 
+              disabled={uploading === 'gallery'}
+            />
+            {uploading === 'gallery' && <p style={{ color: 'var(--gold)', marginTop: '10px' }}>UPLOADING... {uploadProgress}</p>}
+          </div>
+
+          <div className="admin-gallery-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+            {galleryItems.map(item => (
+              <div key={item.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee' }}>
+                <img src={item.image_url} alt="Gallery Item" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+                <button 
+                  onClick={() => handleDeleteGallery(item.id)}
+                  style={{ position: 'absolute', top: '5px', right: '5px', background: 'rgba(231, 76, 60, 0.9)', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}
+                >
+                  DELETE
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </div>
