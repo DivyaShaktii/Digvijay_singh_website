@@ -1149,7 +1149,7 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
   );
 }
 
-function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stageSetupUrl }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void, stageSetupUrl: string }) {
+function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stageSetupUrl }: { images: GalleryImage[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void, stageSetupUrl: string }) {
   const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [showSlots, setShowSlots] = useState(false);
