@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
-type AppRoute = "home" | "biography" | "FluteRoots" | "organizersCorner" | "contact" | "admin" | "login";
+type AppRoute = "home" | "biography" | "FluteRoots" | "organizersCorner" | "contact" | "admin" | "login" | "coursePlayer";
 
 interface Course {
   id: string; // Changed to string for UUIDs
@@ -14,6 +14,8 @@ interface Course {
   price: string;
   video_url: string; // Renamed for general file/YouTube support
   thumbnail_url?: string;
+  notes_url?: string;
+  announcement?: string;
 }
 
 interface GalleryImage {
@@ -94,7 +96,7 @@ const images = {
 function App() {
   const [route, setRoute] = useState<AppRoute>(() => {
     const path = window.location.pathname.replace("/", "") || "home";
-    const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"];
+    const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login", "coursePlayer"];
     return routes.includes(path) ? path as AppRoute : "home";
   });
 
@@ -109,7 +111,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isUserAdmin, setIsUserAdmin] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [galleryItems, setGalleryItems] = useState<GalleryImage[]>([]);
+  const [galleryItems, setGalleryItems] = useState<{id: string, url: string, title: string, category: string}[]>([]);
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
   const [heroImageUrl, setHeroImageUrl] = useState<string>(images.hero);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -123,6 +125,7 @@ function App() {
     { title: "New Advanced Raag Course Coming Soon!", text: "We are launching an intensive course on Raag Yaman next month. Registrations open shortly." },
     { title: "LMS Feature Update", text: "You can now download course materials and certificates directly from your dashboard." }
   ]);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Fetch initial data
@@ -231,7 +234,7 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.replace("/", "") || "home";
-      const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login"];
+      const routes = ["home", "biography", "FluteRoots", "organizersCorner", "contact", "admin", "login", "coursePlayer"];
       if (routes.includes(path)) {
         setRoute(path as AppRoute);
       }
@@ -283,9 +286,10 @@ function App() {
       <main>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage />}
-        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} />}
         {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} />}
         {route === "contact" && <ContactPage />}
+        {route === "coursePlayer" && activeCourseId && <CoursePlayerPage courseId={activeCourseId} courses={courses} user={user} navigate={navigate} />}
         {route === "admin" && (isUserAdmin ? (
           <AdminPage 
             navigate={navigate} 
@@ -459,7 +463,7 @@ function BiographyPage() {
 
 
 
-function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, announcements, onRefresh, heroImageUrl, loading }: { 
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, announcements, onRefresh, heroImageUrl, loading, isUserAdmin, setActiveCourseId }: { 
   navigate: (to: AppRoute) => void, 
   courses: Course[], 
   user: any, 
@@ -468,7 +472,9 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
   announcements: {title: string, text: string}[],
   onRefresh: () => void,
   heroImageUrl: string,
-  loading: boolean
+  loading: boolean,
+  isUserAdmin: boolean,
+  setActiveCourseId: (id: string) => void
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [payingFor, setPayingFor] = useState<string | null>(null);
@@ -498,6 +504,26 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
       return;
     }
 
+    // Admin Bypass: If admin, enroll instantly without payment
+    if (isUserAdmin) {
+      try {
+        const { error } = await supabase.from('enrollments').insert([{ user_id: user.id, course_id: course.id }]);
+        if (error) throw error;
+        alert("Admin Access: You have been enrolled instantly (No payment required).");
+        onRefresh();
+        setTimeout(() => {
+          document.getElementById(`course-card-${course.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 800);
+      } catch (err: any) {
+        if (err.message?.includes('unique_enrollment')) {
+           alert("You are already enrolled in this course.");
+        } else {
+           alert("Admin enrollment failed: " + err.message);
+        }
+      }
+      return;
+    }
+
     const priceValue = course.price ? parseInt(course.price.replace(/[^0-9]/g, "")) : 0;
     
     // Handle Free Courses
@@ -507,6 +533,9 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         if (error) throw error;
         alert("Success! You are now enrolled in this free course.");
         onRefresh();
+        setTimeout(() => {
+          document.getElementById(`course-card-${course.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 800);
       } catch (err) {
         alert("Enrollment failed. Please try again.");
       }
@@ -544,6 +573,9 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
             if (error) throw error;
             alert("Congratulations! You are now enrolled.");
             onRefresh();
+            setTimeout(() => {
+              document.getElementById(`course-card-${course.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 1000);
           } catch (err) {
             alert("Payment recorded, but enrollment failed. Please contact support.");
             console.error(err);
@@ -627,11 +659,33 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         </div>
       </div>
 
-      <section className="courses-section" style={{ paddingTop: '40px' }}>
-        <div className="courses-header">
-          <span className="eyebrow">Learn Bansuri</span>
-          <h2 className="courses-heading">Master the Classical Flute</h2>
-          <p className="courses-desc">
+      <section className="courses-section" style={{ background: '#1c1d1f', paddingTop: '60px', paddingBottom: '60px' }}>
+        {isUserAdmin && (
+          <div style={{ 
+            background: 'rgba(212, 175, 55, 0.1)', 
+            border: '1px dashed var(--gold)', 
+            padding: '12px 20px', 
+            borderRadius: '8px', 
+            marginBottom: '30px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{ color: 'var(--gold)', fontSize: '14px', fontWeight: '500' }}>
+              🛠️ <strong>Admin Preview Mode:</strong> You can enroll in any course instantly without payment.
+            </span>
+            <button 
+              onClick={() => navigate("admin")} 
+              style={{ background: 'var(--gold)', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+            >
+              RETURN TO DASHBOARD
+            </button>
+          </div>
+        )}
+        <div className="courses-header" style={{ marginBottom: '50px' }}>
+          <span className="eyebrow" style={{ color: 'var(--gold)' }}>Learn Bansuri</span>
+          <h2 className="courses-heading" style={{ color: '#ffffff', fontSize: '36px', margin: '10px 0' }}>Master the Classical Flute</h2>
+          <p className="courses-desc" style={{ color: '#a0a0a0', maxWidth: '800px', margin: '0 auto' }}>
             Whether you are a complete beginner or an advanced player, these carefully designed courses will guide you through the authentic tradition of Hindustani classical flute.
           </p>
         </div>
@@ -647,10 +701,39 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
               const videoSrc = isEnrolled ? (signedUrls[course.id] || course.video_url) : null;
 
               return (
-                <div key={course.id} className="course-card">
-                  <div className="course-thumbnail">
-                    {isEnrolled && videoSrc ? (
-                      <video src={videoSrc} className="course-video-embed" controls controlsList="nodownload" />
+                <div key={course.id} id={`course-card-${course.id}`} className="course-card" style={{ 
+                  background: '#2d2f31', 
+                  borderRadius: '8px', 
+                  overflow: 'hidden', 
+                  border: '1px solid #3e4143',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s ease'
+                }}>
+                  <div className="course-thumbnail" style={{ position: 'relative', aspectRatio: '16/9', background: '#000' }}>
+                    {isEnrolled ? (
+                      <div 
+                        className="course-thumbnail-overlay-clickable" 
+                        onClick={() => {
+                          setActiveCourseId(course.id);
+                          navigate("coursePlayer");
+                        }}
+                        style={{ cursor: 'pointer', position: 'relative' }}
+                      >
+                        {course.thumbnail_url ? (
+                          <img src={course.thumbnail_url} alt={course.title} className="course-thumbnail-img" />
+                        ) : (
+                          <div className="course-no-thumb">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                          </div>
+                        )}
+                        <div className="course-play-overlay">
+                          <div className="play-button-circle">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                          </div>
+                          <span>Continue Learning</span>
+                        </div>
+                      </div>
                     ) : (
                       <div className="course-locked-overlay">
                         {course.thumbnail_url ? (
@@ -665,47 +748,88 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                     )}
                     {course.level && <div className="course-level-badge">{course.level}</div>}
                   </div>
-                  <div className="course-body">
-                    <h3 className="course-title">{course.title}</h3>
-                    <p className="course-description">{course.description}</p>
-                    <div className="course-meta">
-                      {course.duration && (
-                        <span className="course-meta-item">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
-                          {course.duration}
-                        </span>
-                      )}
-                      {course.lessons !== undefined && (
-                        <span className="course-meta-item">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-                          {course.lessons} Lessons
-                        </span>
+                  <div className="course-body" style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h3 className="course-title" style={{ 
+                      margin: '0 0 8px', 
+                      fontFamily: "'Lora', Georgia, serif", 
+                      fontSize: '22px', 
+                      color: '#ffffff',
+                      fontWeight: 700 
+                    }}>{course.title}</h3>
+                    <p className="course-meta" style={{ fontSize: '14px', color: '#a0a0a0', margin: '0 0 16px' }}>Digvijaysinh Chauhan</p>
+                    
+                    <div style={{ marginTop: 'auto' }}>
+                      {isEnrolled ? (
+                        <div className="course-progress-container" style={{ padding: '16px 0' }}>
+                          <div className="progress-bar-bg" style={{ height: '4px', background: '#3e4143', width: '100%', marginBottom: '8px' }}>
+                            <div className="progress-bar-fill" style={{ width: '25%', height: '100%', background: '#a435f0' }}></div>
+                          </div>
+                          <div className="progress-text">
+                            <span style={{ fontSize: '12px', color: '#a0a0a0' }}>25% complete</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', gap: '15px', color: '#a0a0a0', fontSize: '13px', borderTop: '1px solid #3e4143', paddingTop: '16px', marginBottom: '16px' }}>
+                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                               {course.duration}
+                             </span>
+                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                               {course.lessons} Lessons
+                             </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 700, color: '#ffffff' }}>
+                              {course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'}
+                            </div>
+                            <button 
+                              className="enroll-btn"
+                              onClick={() => handleEnroll(course)}
+                              disabled={payingFor === course.id}
+                              style={{ 
+                                background: '#a435f0', 
+                                color: '#fff', 
+                                border: 'none', 
+                                padding: '10px 20px', 
+                                fontWeight: 700, 
+                                cursor: 'pointer', 
+                                fontSize: '14px',
+                                borderRadius: '4px',
+                                textTransform: 'uppercase'
+                              }}
+                            >
+                              {payingFor === course.id ? "..." : (user ? "Enroll Now" : "Login to Enroll")}
+                            </button>
+                          </div>
+                        </>
                       )}
                     </div>
-                    <div className="course-footer">
-                      <div className="course-price-container">
-                        <span className="course-price">
-                          {isEnrolled ? (
-                            <span className="text-gold" style={{ fontWeight: '600' }}>✓ Enrolled</span>
-                          ) : (
-                            course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'
-                          )}
-                        </span>
-                      </div>
-                      {!isEnrolled && (
-                        <button 
-                          className="course-enroll-btn" 
-                          onClick={() => handleEnroll(course)}
-                          disabled={payingFor === course.id}
-                        >
-                          {payingFor === course.id ? (
-                            <span className="btn-loader-container">
-                              <span className="btn-loader"></span> Processing...
-                            </span>
-                          ) : (user ? "Enroll Now" : "Login to Enroll")}
-                        </button>
-                      )}
-                    </div>
+                  </div>
+
+                  <div className="course-footer" style={{ borderTop: '1px solid #d1d7dc', padding: '12px 16px' }}>
+                    {isEnrolled ? (
+                      <button 
+                        className="enroll-btn-active" 
+                        onClick={() => {
+                          setActiveCourseId(course.id);
+                          navigate("coursePlayer");
+                        }}
+                        style={{ width: '100%', background: '#5624d0', color: '#fff', border: 'none', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}
+                      >
+                        START COURSE
+                      </button>
+                    ) : (
+                      <button 
+                        className="enroll-btn"
+                        onClick={() => handleEnroll(course)}
+                        disabled={payingFor === course.id}
+                        style={{ width: '100%', background: '#1c1d1f', color: '#fff', border: 'none', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}
+                      >
+                        {payingFor === course.id ? "Processing..." : (user ? "Enroll Now" : "Login to Enroll")}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -780,6 +904,170 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         </div>
       )}
     </>
+  );
+}
+
+function CoursePlayerPage({ courseId, courses, user, navigate }: { courseId: string, courses: Course[], user: any, navigate: (to: AppRoute) => void }) {
+  const course = courses.find(c => c.id === courseId);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    const fetchSignedUrl = async () => {
+      if (!course) return;
+      setLoading(true);
+      if (course.video_url.includes('supabase.co')) {
+        const path = course.video_url.split('/').pop() || "";
+        const { data } = await supabase.storage.from('course-media').createSignedUrl(path, 7200);
+        if (data) setVideoUrl(data.signedUrl);
+      } else {
+        setVideoUrl(course.video_url);
+      }
+      setLoading(false);
+    };
+    fetchSignedUrl();
+  }, [course]);
+
+  if (!course) return <div className="admin-empty">Course not found</div>;
+
+  return (
+    <div className="course-player-page">
+      <header className="player-header">
+        <div className="player-header-left">
+          <button className="back-to-courses" onClick={() => navigate("FluteRoots")} style={{ border: 'none', background: 'transparent' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <div style={{ height: '24px', width: '1px', background: 'rgba(255,255,255,0.2)' }}></div>
+          <h2 className="player-course-title">{course.title}</h2>
+        </div>
+        <div className="player-header-right">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span style={{ fontSize: '14px' }}>Your progress</span>
+          </div>
+          <button className="resource-btn" style={{ borderColor: 'rgba(255,255,255,0.3)', color: '#fff' }}>
+            Share <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div className="player-layout">
+        <div className="player-main">
+          <div className="player-video-section">
+            <div className="player-video-container">
+              {loading ? (
+                <div className="player-loader" style={{ color: '#fff' }}>Loading Video...</div>
+              ) : videoUrl ? (
+                <video 
+                  src={videoUrl} 
+                  className="player-video-element" 
+                  controls 
+                  controlsList="nodownload"
+                  onTimeUpdate={(e: any) => {
+                    localStorage.setItem(`progress_${course.id}_${user?.id || 'anon'}`, e.target.currentTime);
+                  }}
+                  onLoadedMetadata={(e: any) => {
+                    const savedTime = localStorage.getItem(`progress_${course.id}_${user?.id || 'anon'}`);
+                    if (savedTime) e.target.currentTime = parseFloat(savedTime);
+                  }}
+                />
+              ) : (
+                <div className="player-error">Video not available</div>
+              )}
+            </div>
+          </div>
+          
+          <div className="player-content-area">
+            <div className="player-tabs-container">
+              <div className="player-tabs">
+                {["Overview", "Notes", "Announcements"].map(tab => (
+                  <button 
+                    key={tab}
+                    className={`player-tab ${activeTab === tab.toLowerCase() ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab.toLowerCase())}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="player-tab-content">
+              {activeTab === "overview" && (
+                <div className="overview-content">
+                  <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', fontFamily: 'Inter, sans-serif' }}>About this course</h1>
+                  <p style={{ fontSize: '16px', lineHeight: '1.6', color: '#1c1d1f', fontFamily: 'Inter, sans-serif' }}>{course.description}</p>
+                </div>
+              )}
+              {activeTab === "notes" && (
+                <div className="notes-content">
+                  <h3 style={{ fontSize: '20px', fontWeight: 700 }}>Course Resources</h3>
+                  <p>Downloadable materials for this lecture:</p>
+                  {course.notes_url ? (
+                    <a href={course.notes_url} target="_blank" rel="noopener noreferrer" className="resource-btn" style={{ padding: '12px 24px', fontSize: '14px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      Download PDF Notes
+                    </a>
+                  ) : (
+                    <p style={{ color: '#6a6f73' }}>No resources available for this course.</p>
+                  )}
+                </div>
+              )}
+              {activeTab === "announcements" && (
+                <div className="announcements-content">
+                  <h3 style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'Inter, sans-serif' }}>Course Updates</h3>
+                  {course.announcement ? (
+                    <div style={{ padding: '20px', background: '#f7f9fa', borderRadius: '8px', borderLeft: '4px solid #5624d0', marginTop: '16px' }}>
+                      <p style={{ margin: 0, fontSize: '15px', color: '#1c1d1f', fontFamily: 'Inter, sans-serif' }}>{course.announcement}</p>
+                    </div>
+                  ) : (
+                    <p style={{ color: '#6a6f73', marginTop: '16px' }}>No announcements for this course yet.</p>
+                  )}
+                  
+                  <div style={{ marginTop: '40px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#1c1d1f', marginBottom: '16px' }}>Site-wide News</h4>
+                    {announcements.map((ann, idx) => (
+                      <div key={idx} style={{ marginBottom: '15px', padding: '15px', borderBottom: '1px solid #eee' }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px' }}>{ann.title}</div>
+                        <div style={{ fontSize: '13px', color: '#6a6f73' }}>{ann.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <aside className="player-sidebar">
+          <div className="sidebar-header">
+            <h3>Course content</h3>
+            <button style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div className="sidebar-content">
+            <div className="curriculum-section">
+              <div className="curriculum-section-header">
+                <h4>Section 1: Introduction</h4>
+                <div className="curriculum-section-meta">1 / 1 | {course.duration}min</div>
+              </div>
+              <div className="curriculum-item active">
+                <div className="item-check done">✓</div>
+                <div className="item-info">
+                  <div className="item-title">1. Full Course Video</div>
+                  <div className="item-meta">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span>{course.duration}min</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -920,7 +1208,7 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
         </div>
       </section>
 
-      <section className="quote-section">
+      <section className="quote-section" style={{ background: '#1c1d1f' }}>
         <p className="quote-text text-serif text-italic">
           "The bansuri is an extension of the breath, and through it, one breathes life into the silence."
         </p>
@@ -1159,7 +1447,7 @@ function AdminPage({
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "" });
+  const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "", notes_url: "", announcement: "" });
   const [eventForm, setEventForm] = useState<{title: string, date: string, type: CalendarEvent['type']}>({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
@@ -1211,7 +1499,7 @@ function AdminPage({
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
   const resetForm = () => {
-    setForm({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "" });
+    setForm({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "", notes_url: "", announcement: "" });
     setEditingId(null);
   };
 
@@ -1318,6 +1606,48 @@ function AdminPage({
     }
   };
 
+  const handleNotesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading('course-notes');
+    try {
+      if (file.size > 20 * 1024 * 1024) {
+        alert("PDF is too large (>20MB). Please optimize the file.");
+        setUploading(null);
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop();
+      if (fileExt?.toLowerCase() !== 'pdf') {
+        alert("Only PDF files are allowed for notes.");
+        setUploading(null);
+        return;
+      }
+
+      const fileName = `${Date.now()}_notes.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('course-media')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('course-media')
+        .getPublicUrl(fileName);
+
+      setForm({ ...form, notes_url: publicUrl });
+      showToast("PDF Notes uploaded!");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error uploading PDF: " + err.message);
+    } finally {
+      setUploading(null);
+      e.target.value = "";
+    }
+  };
+
   // Multi-file gallery upload
   const handleMultipleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1345,18 +1675,8 @@ function AdminPage({
           .from('gallery-photos')
           .upload(fileName, file, { upsert: true });
 
-        if (uploadError) { console.error(uploadError); continue; }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('gallery-photos')
-          .getPublicUrl(fileName);
-
-        const { error: dbError } = await supabase
-          .from('gallery')
-          .insert([{ image_url: publicUrl, display_order: galleryItems.length + i }]);
-
-        if (!dbError) successCount++;
-        else console.error(dbError);
+        if (!uploadError) successCount++;
+        else console.error(uploadError);
       } catch (err) { console.error(err); }
     }
 
@@ -1370,7 +1690,6 @@ function AdminPage({
     e.target.value = "";
   };
 
-  // Multi-video upload
   const handleMultipleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -1382,7 +1701,6 @@ function AdminPage({
     for (let i = 0; i < totalFiles; i++) {
       const file = files[i];
       
-      // Video size check (50MB)
       if (file.size > 50 * 1024 * 1024) {
         console.warn(`Skipping ${file.name}: Too large for free tier (${Math.round(file.size/1024/1024)}MB)`);
         continue;
@@ -1430,7 +1748,7 @@ function AdminPage({
       return;
     }
 
-    const courseData = {
+    const courseData: any = {
       title: form.title,
       description: form.description,
       level: form.level,
@@ -1438,12 +1756,12 @@ function AdminPage({
       lessons: Number(form.lessons),
       price: form.price,
       video_url: form.video_url,
-      thumbnail_url: form.thumbnail_url
+      thumbnail_url: form.thumbnail_url,
+      notes_url: form.notes_url,
     };
 
     setUploading('course-save');
     try {
-
       if (editingId) {
         const { error } = await supabase
           .from('courses')
@@ -1459,24 +1777,23 @@ function AdminPage({
         showToast("Course added!");
       }
       resetForm();
-      onRefresh();
+      if (onRefresh) onRefresh();
     } catch (err: any) {
-      if (err.message === 'Failed to fetch' || err.message.includes('fetch') || err.message.includes('security') || true) {
-        // Fallback to local storage for ANY database error to ensure smooth UX
+      console.error("Save error:", err);
+      if (err.message?.includes('fetch') || err.message?.includes('network')) {
         const existing = JSON.parse(localStorage.getItem('local_courses') || '[]');
         if (editingId) {
           const updated = existing.map((c: any) => c.id === editingId ? { ...c, ...courseData } : c);
           localStorage.setItem('local_courses', JSON.stringify(updated));
-          showToast("Course updated locally.");
-          alert("SUCCESS: Course updated in your local browser storage.");
         } else {
-          const newCourse = { ...courseData, id: Date.now().toString() };
+          const newCourse = { ...courseData, id: 'local_' + Date.now() };
           localStorage.setItem('local_courses', JSON.stringify([...existing, newCourse]));
-          showToast("Course saved locally.");
-          alert("SUCCESS: Course saved to your local browser storage.");
         }
+        showToast("Saved locally (Offline)");
         resetForm();
-        onRefresh();
+        if (onRefresh) onRefresh();
+      } else {
+        alert("Database Error: " + err.message);
       }
     } finally {
       setUploading(null);
@@ -1559,7 +1876,9 @@ function AdminPage({
       lessons: course.lessons || 0,
       price: course.price,
       video_url: course.video_url,
-      thumbnail_url: course.thumbnail_url || ""
+      thumbnail_url: course.thumbnail_url || "",
+      notes_url: course.notes_url || "",
+      announcement: course.announcement || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1758,6 +2077,13 @@ function AdminPage({
         </div>
         <nav className="admin-nav">
           <button onClick={() => navigate("admin")} className="admin-nav-item active" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>Dashboard</button>
+          <button 
+            onClick={() => navigate("FluteRoots")} 
+            className="admin-nav-item" 
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', color: 'var(--gold)', fontWeight: '600' }}
+          >
+            👁️ Preview Student View
+          </button>
           <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="admin-nav-item" style={{ display: 'block', textDecoration: 'none' }}>Back to Home</a>
         </nav>
         <div className="admin-stats">
@@ -1986,6 +2312,35 @@ function AdminPage({
                   />
                 </div>
                 {form.video_url && !form.video_url.includes('http') && <p style={{ marginTop: '8px', fontSize: '13px', color: 'orange' }}>Please enter a valid URL starting with http:// or https://</p>}
+              </div>
+
+                  <div className="form-group">
+                    <label>Course Announcement (Optional)</label>
+                    <textarea 
+                      value={form.announcement || ""} 
+                      onChange={(e) => setForm({ ...form, announcement: e.target.value })}
+                      placeholder="e.g. Welcome to the course! Check out the new PDF notes added today."
+                      style={{ minHeight: '80px' }}
+                    />
+                    <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>This will appear in the 'Announcements' tab of the course player.</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Course Notes (PDF)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {uploading === 'course-notes' ? 'Uploading...' : '📄 Upload PDF Notes'}
+                    <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => handleNotesUpload(e)} />
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="Or paste PDF link here..." 
+                    value={form.notes_url || ""} 
+                    onChange={e => setForm({...form, notes_url: e.target.value})}
+                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  />
+                </div>
+                {form.notes_url && <p style={{ marginTop: '8px', fontSize: '13px', color: '#4CAF50' }}>✓ PDF Notes attached: {form.notes_url.split('/').pop()?.split('_').pop()}</p>}
               </div>
               <div className="admin-preview">
                 {form.video_url ? (
