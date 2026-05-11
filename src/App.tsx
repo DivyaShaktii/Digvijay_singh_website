@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
@@ -118,6 +118,11 @@ function App() {
     title: "Introductory Video",
     description: "Welcome to the world of Bansuri. Here we explore the deep meditative qualities of the Indian flute."
   });
+  const [stageSetupUrl, setStageSetupUrl] = useState<string>("");
+  const [announcements, setAnnouncements] = useState<{title: string, text: string}[]>([
+    { title: "New Advanced Raag Course Coming Soon!", text: "We are launching an intensive course on Raag Yaman next month. Registrations open shortly." },
+    { title: "LMS Feature Update", text: "You can now download course materials and certificates directly from your dashboard." }
+  ]);
   const [loading, setLoading] = useState(true);
 
   // Fetch initial data
@@ -154,6 +159,26 @@ function App() {
           if (s.key === 'intro_video_description') newIntro.description = s.value;
         });
         setIntroVideo(newIntro);
+
+        const setup = settings.find(s => s.key === 'stage_setup_url_1');
+        if (setup) setStageSetupUrl(setup.value);
+
+        // Load announcements from JSON or individual keys
+        const annJson = settings.find(s => s.key === 'course_announcements_json');
+        if (annJson) {
+          try {
+            setAnnouncements(JSON.parse(annJson.value));
+          } catch (e) { console.error(e); }
+        } else {
+          const ann1Title = settings.find(s => s.key === 'announcement_1_title');
+          const ann1Text = settings.find(s => s.key === 'announcement_1_text');
+          const ann2Title = settings.find(s => s.key === 'announcement_2_title');
+          const ann2Text = settings.find(s => s.key === 'announcement_2_text');
+          const loadedAnn = [];
+          if (ann1Title || ann1Text) loadedAnn.push({ title: ann1Title?.value || "", text: ann1Text?.value || "" });
+          if (ann2Title || ann2Text) loadedAnn.push({ title: ann2Title?.value || "", text: ann2Text?.value || "" });
+          if (loadedAnn.length > 0) setAnnouncements(loadedAnn);
+        }
       }
 
       if (!eventsRes.error) setCalendarEvents(eventsRes.data || []);
@@ -225,16 +250,16 @@ function App() {
     };
   }, []); // Static effect
 
-  const isDarkMode = route === "home" || route === "biography" || route === "FluteRoots" || route === "organizersCorner" || route === "contact";
-  const isAdmin = route === "admin";
+  const pageIsDark = route === "home" || route === "biography" || route === "FluteRoots" || route === "organizersCorner" || route === "contact";
+  const onAdminPage = route === "admin";
 
   return (
     <div className="app-container">
-      {!isAdmin && (
-        <header className={`site-header ${scrolled ? "scrolled" : ""} ${!scrolled && isDarkMode ? "dark-mode" : ""}`}>
+      {!onAdminPage && (
+        <header className={`site-header ${scrolled ? "scrolled" : ""} ${!scrolled && pageIsDark ? "dark-mode" : ""}`}>
           <div className="nav-container">
             <div className="site-logo" onClick={() => navigate("home")} style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center' }}>
-              <span className="logo-text serif-title" style={{ fontSize: '22px', color: scrolled ? '#000' : (isDarkMode ? 'var(--gold)' : '#000'), transition: 'color 0.3s' }}>Flute Roots</span>
+              <span className="logo-text serif-title" style={{ fontSize: '22px', color: scrolled ? '#000' : (pageIsDark ? 'var(--gold)' : '#000'), transition: 'color 0.3s' }}>Flute Roots</span>
             </div>
             <nav className="site-nav">
               <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="nav-link">Home</a>
@@ -258,8 +283,8 @@ function App() {
       <main>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage />}
-        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} />}
-        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} />}
+        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} />}
         {route === "contact" && <ContactPage />}
         {route === "admin" && (isUserAdmin ? (
           <AdminPage 
@@ -270,13 +295,17 @@ function App() {
             setHeroImageUrl={setHeroImageUrl} 
             introVideo={introVideo}
             calendarEvents={calendarEvents}
+            stageSetupUrl={stageSetupUrl}
+            setStageSetupUrl={setStageSetupUrl}
+            announcements={announcements}
+            setAnnouncements={setAnnouncements}
             onRefresh={fetchData} 
             user={user}
           />
         ) : <LoginPage navigate={navigate} />)}
         {route === "login" && <LoginPage navigate={navigate} />}
       </main>
-      {!isAdmin && <Footer />}
+      {!onAdminPage && <Footer />}
     </div>
   );
 }
@@ -430,12 +459,13 @@ function BiographyPage() {
 
 
 
-function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onRefresh, heroImageUrl, loading }: { 
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, announcements, onRefresh, heroImageUrl, loading }: { 
   navigate: (to: AppRoute) => void, 
   courses: Course[], 
   user: any, 
   enrollments: string[], 
   calendarEvents: CalendarEvent[],
+  announcements: {title: string, text: string}[],
   onRefresh: () => void,
   heroImageUrl: string,
   loading: boolean
@@ -567,7 +597,37 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, onR
         <p className="page-hero-subtitle">Learn the art of Bansuri from the tradition of Guru-Shishya Parampara</p>
       </section>
 
-      <section className="courses-section">
+      {/* Rotating Notification Stripe - Flush against hero */}
+      <div className="notification-stripe" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', background: '#0a0a0a' }}>
+        <div className="stripe-wrapper">
+          <div className="stripe-container">
+            {/* Repeated content for seamless loop */}
+            {[1, 2, 3].map((set) => (
+              <div key={set} style={{ display: 'contents' }}>
+                {/* Live Classes in Stripe */}
+                {calendarEvents
+                  .filter(e => e.type === 'class' && new Date(e.date) >= new Date(new Date().setHours(0,0,0,0)))
+                  .map(ev => (
+                    <div key={`live-${set}-${ev.id}`} className="stripe-item">
+                      <span className="stripe-badge">LIVE SESSION</span>
+                      <span>{ev.title} — {new Date(ev.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                    </div>
+                  ))
+                }
+                {/* Dynamic Announcements in Stripe */}
+                {announcements.map((ann, idx) => (
+                  <div key={`ann-${set}-${idx}`} className="stripe-item">
+                    <span className="stripe-badge" style={{ background: idx % 2 === 0 ? 'var(--gold)' : '#4CAF50' }}>ANNOUNCEMENT</span>
+                    <span><strong>{ann.title}:</strong> {ann.text}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <section className="courses-section" style={{ paddingTop: '40px' }}>
         <div className="courses-header">
           <span className="eyebrow">Learn Bansuri</span>
           <h2 className="courses-heading">Master the Classical Flute</h2>
@@ -801,7 +861,7 @@ function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSel
   );
 }
 
-function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void }) {
+function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stageSetupUrl }: { images: any[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void, stageSetupUrl: string }) {
   const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [showSlots, setShowSlots] = useState(false);
@@ -810,6 +870,25 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
   const bookedEvents = selectedDayEvents.filter(e => e.type === 'performance' || e.type === 'blocked');
   const availableSlots = selectedDayEvents.filter(e => e.type === 'available' || e.type === 'class');
   const isBlocked = bookedEvents.length > 0;
+
+  const handleDownload = async () => {
+    if (!stageSetupUrl) return;
+    try {
+      const response = await fetch(stageSetupUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Stage_Setup.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed, opening in new tab instead", error);
+      window.open(stageSetupUrl, '_blank');
+    }
+  };
 
   return (
     <>
@@ -827,7 +906,7 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
             gap: '30px',
             width: '100%'
           }}>
-            {displayImages.map((src, i) => (
+            {displayImages.slice(0, 6).map((src, i) => (
               <div key={i} style={{ 
                 borderRadius: '4px', 
                 overflow: 'hidden', 
@@ -845,6 +924,45 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
         <p className="quote-text text-serif text-italic">
           "The bansuri is an extension of the breath, and through it, one breathes life into the silence."
         </p>
+      </section>
+
+      {/* Stage Setup Section */}
+      <section style={{ padding: '80px 0', background: '#fff' }}>
+        <div className="container">
+          <h2 className="serif-title text-center" style={{ marginBottom: '40px', fontSize: '36px' }}>Stage Setup</h2>
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            {stageSetupUrl ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ 
+                  borderRadius: '12px', 
+                  overflow: 'hidden', 
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.1)', 
+                  marginBottom: '24px',
+                  background: '#f9f9f9',
+                  aspectRatio: '16/9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid #eee'
+                }}>
+                  <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                </div>
+                <button 
+                  onClick={handleDownload}
+                  className="admin-btn admin-btn-primary" 
+                  style={{ display: 'inline-block', padding: '12px 40px', cursor: 'pointer', border: 'none' }}
+                >
+                  Download Stage Setup
+                </button>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px', background: '#fcfaf7', borderRadius: '12px', border: '1px dashed #ddd' }}>
+                <p style={{ color: '#999', fontStyle: 'italic', fontSize: '18px' }}>Stage setup diagram will be available here soon.</p>
+                <p style={{ color: '#bbb', fontSize: '14px', marginTop: '8px' }}>Organizers can download this for concert planning.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Upcoming Event Band / Calendar Section */}
@@ -1010,7 +1128,21 @@ function ContactPage() {
   );
 }
 
-function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImageUrl, introVideo, calendarEvents, onRefresh, user }: { 
+function AdminPage({ 
+  navigate, 
+  courses, 
+  galleryItems, 
+  heroImageUrl, 
+  setHeroImageUrl, 
+  introVideo, 
+  calendarEvents, 
+  stageSetupUrl,
+  setStageSetupUrl,
+  announcements,
+  setAnnouncements,
+  onRefresh, 
+  user 
+}: { 
   navigate: (to: AppRoute) => void,
   courses: Course[], 
   galleryItems: GalleryImage[], 
@@ -1018,6 +1150,10 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   setHeroImageUrl: (url: string) => void,
   introVideo: { url: string, title: string, description: string },
   calendarEvents: CalendarEvent[],
+  stageSetupUrl: string,
+  setStageSetupUrl: (url: string) => void,
+  announcements: {title: string, text: string}[],
+  setAnnouncements: (anns: {title: string, text: string}[]) => void,
   onRefresh: () => void,
   user: any
 }) {
@@ -1029,6 +1165,7 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState("");
   const [introForm, setIntroForm] = useState(introVideo);
+  const [announcementForm, setAnnouncementForm] = useState(announcements);
   const [videoFiles, setVideoFiles] = useState<{name: string, url: string}[]>([]);
 
   // Fetch videos from storage bucket
@@ -1046,6 +1183,30 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   }, []);
 
   useEffect(() => { fetchVideos(); }, [fetchVideos]);
+
+  // Paste handler for stage setup
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // Only handle paste if we're not currently typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (const item of items) {
+        if (item.type.indexOf("image") !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            handleStageSetupUpload({ target: { files: [file] } } as any);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 3000); };
 
@@ -1494,6 +1655,49 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
     }
   };
 
+  const handleStageSetupUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(`stage-setup`);
+    try {
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image is too large (>10MB).");
+        setUploading(null);
+        return;
+      }
+
+      const fileExt = file.name ? file.name.split('.').pop() : 'png';
+      const fileName = `stage_setup_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('gallery-photos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('gallery-photos')
+        .getPublicUrl(fileName);
+
+      const { error: dbError } = await supabase
+        .from('settings')
+        .upsert({ key: 'stage_setup_url_1', value: publicUrl }, { onConflict: 'key' });
+
+      if (dbError) {
+        console.warn("DB Save failed, updating state only", dbError);
+      }
+
+      setStageSetupUrl(publicUrl);
+      showToast(`Stage Setup updated!`);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setUploading(null);
+      if (e.target && e.target.value) e.target.value = "";
+    }
+  };
+
   const handleUpdateIntro = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploading('intro');
@@ -1519,6 +1723,27 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
       localStorage.setItem('local_intro_video_description', introForm.description);
       showToast("Intro updated locally (Database failed)");
       onRefresh();
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleUpdateAnnouncements = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading('announcements');
+    try {
+      const { error } = await supabase.from('settings').upsert({ 
+        key: 'course_announcements_json', 
+        value: JSON.stringify(announcementForm) 
+      }, { onConflict: 'key' });
+      
+      if (error) throw error;
+
+      showToast("Announcements updated successfully!");
+      onRefresh();
+    } catch (err: any) {
+      console.error("Announcement Save Error:", err);
+      showToast("Error updating announcements");
     } finally {
       setUploading(null);
     }
@@ -1573,6 +1798,126 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
               </ul>
             </div>
           </div>
+        </div>
+
+        {/* Stage Setup Management */}
+        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)' }}>Stage Setup Diagram</h3>
+            <span style={{ fontSize: '12px', color: 'var(--gold)', background: '#fcfaf7', padding: '4px 12px', borderRadius: '20px', border: '1px solid var(--gold)' }}>
+              Tip: Press <strong>Ctrl + V</strong> to paste an image
+            </span>
+          </div>
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+            <div className="admin-upload-card" style={{ 
+              background: '#fcfaf7', 
+              border: '2px dashed #ddd', 
+              borderRadius: '12px', 
+              padding: '30px', 
+              textAlign: 'center'
+            }}>
+              <div style={{ 
+                width: '100%', 
+                aspectRatio: '16/9', 
+                background: '#fff', 
+                borderRadius: '8px', 
+                marginBottom: '20px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                overflow: 'hidden',
+                border: '1px solid #eee'
+              }}>
+                {stageSetupUrl ? (
+                  <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <div style={{ color: '#bbb' }}>
+                    <p style={{ fontSize: '14px' }}>No setup diagram uploaded</p>
+                    <p style={{ fontSize: '12px', marginTop: '4px' }}>Paste (Ctrl+V) or click upload below</p>
+                  </div>
+                )}
+              </div>
+              <input 
+                type="file" 
+                id="stage-setup-file" 
+                style={{ display: 'none' }} 
+                onChange={handleStageSetupUpload} 
+                accept="image/*" 
+              />
+              <label htmlFor="stage-setup-file" className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', display: 'inline-block', width: '100%' }}>
+                {uploading === 'stage-setup' ? "UPLOADING..." : (stageSetupUrl ? "REPLACE IMAGE" : "UPLOAD IMAGE")}
+              </label>
+            </div>
+          </div>
+          <p style={{ marginTop: '20px', color: '#666', fontSize: '13px', textAlign: 'center' }}>
+            This diagram will appear in the Organizers Corner and will be available for download.
+          </p>
+        </div>
+
+        {/* Course Announcements Management */}
+        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Rotating Course Announcements</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {announcementForm.map((ann, idx) => (
+              <div key={idx} style={{ padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px solid #eee', position: 'relative' }}>
+                <button 
+                  onClick={() => setAnnouncementForm(announcementForm.filter((_, i) => i !== idx))}
+                  style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '18px' }}
+                >
+                  &times;
+                </button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+                  <div className="admin-field" style={{ marginBottom: 0 }}>
+                    <label>Badge Title</label>
+                    <input 
+                      type="text" 
+                      value={ann.title} 
+                      onChange={e => {
+                        const newAnns = [...announcementForm];
+                        newAnns[idx].title = e.target.value;
+                        setAnnouncementForm(newAnns);
+                      }} 
+                      placeholder="e.g. NEW COURSE" 
+                    />
+                  </div>
+                  <div className="admin-field" style={{ marginBottom: 0 }}>
+                    <label>Announcement Message</label>
+                    <textarea 
+                      rows={2} 
+                      value={ann.text} 
+                      onChange={e => {
+                        const newAnns = [...announcementForm];
+                        newAnns[idx].text = e.target.value;
+                        setAnnouncementForm(newAnns);
+                      }} 
+                      placeholder="e.g. Enrollments starting next Monday..." 
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            <button 
+              onClick={() => setAnnouncementForm([...announcementForm, { title: "", text: "" }])}
+              className="admin-btn" 
+              style={{ background: '#f0f0f0', color: '#444', width: '200px' }}
+            >
+              + ADD ANNOUNCEMENT
+            </button>
+
+            <div style={{ marginTop: '24px', textAlign: 'right', borderTop: '1px solid #eee', paddingTop: '24px' }}>
+              <button 
+                onClick={handleUpdateAnnouncements} 
+                className="admin-btn admin-btn-primary" 
+                disabled={uploading === 'announcements'}
+              >
+                {uploading === 'announcements' ? "UPDATING..." : "SAVE & PUSH TO STRIPE"}
+              </button>
+            </div>
+          </div>
+          <p style={{ marginTop: '16px', color: '#888', fontSize: '13px' }}>
+            These announcements will rotate in a continuous stripe on the Courses page.
+          </p>
         </div>
 
 

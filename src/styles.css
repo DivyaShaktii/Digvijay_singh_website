@@ -1571,9 +1571,77 @@ a {
   to { transform: translateY(0); opacity: 1; }
 }
 
+@media (max-width: 768px) {
+  .stage-setup-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .stage-setup-card {
+    margin-bottom: 30px;
+  }
+}
+
 @media (max-width: 600px) {
   .checkout-modal { width: 95%; }
   .checkout-content { padding: 24px; }
   .checkout-item { flex-direction: column; text-align: center; }
   .checkout-item-thumb { width: 120px; height: 68px; }
+}
+
+@media (max-width: 991px) {
+  .course-notifications > div {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Notification Stripe */
+.notification-stripe {
+  background: #111;
+  color: #fff;
+  padding: 14px 0;
+  overflow: hidden;
+  position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.stripe-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.stripe-container {
+  display: flex;
+  white-space: nowrap;
+  animation: stripe-scroll 40s linear infinite;
+}
+
+.stripe-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 100px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+}
+
+.stripe-badge {
+  background: var(--gold);
+  color: #000;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+@keyframes stripe-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@media (max-width: 768px) {
+  .stripe-item {
+    margin-right: 50px;
+    font-size: 13px;
+  }
 }
