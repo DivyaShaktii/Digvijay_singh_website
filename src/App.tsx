@@ -378,7 +378,7 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
                 )}
           </div>
           <div className="intro-content">
-            <span className="section-label" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px', display: 'block', marginBottom: '12px' }}>Introductory Video</span>
+
             <h2 className="serif-title" style={{ fontSize: '42px', marginBottom: '24px' }}>{title}</h2>
             <p style={{ color: '#666', lineHeight: '1.8', fontSize: '18px' }}>{description}</p>
           </div>
