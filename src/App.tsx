@@ -807,9 +807,9 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
   const [showSlots, setShowSlots] = useState(false);
   
   const selectedDayEvents = calendarEvents.filter(e => e.date === selectedDate);
-  const isBlocked = selectedDayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
+  const bookedEvents = selectedDayEvents.filter(e => e.type === 'performance' || e.type === 'blocked');
   const availableSlots = selectedDayEvents.filter(e => e.type === 'available' || e.type === 'class');
-  const bookedEvents = selectedDayEvents.filter(e => e.type === 'blocked' || e.type === 'performance');
+  const isBlocked = bookedEvents.length > 0;
 
   return (
     <>
@@ -868,8 +868,7 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
                       {bookedEvents.map(e => (
                         <div key={e.id} style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', borderLeft: '4px solid var(--gold)', marginBottom: '16px' }}>
                           <span style={{ display: 'block', fontSize: '12px', color: '#c5a059', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Booked</span>
-                          <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Digvijaysinh is {e.title}</strong>
-                          <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>This date is currently reserved for a {e.type}.</p>
+                          <strong style={{ display: 'block', fontSize: '18px', marginBottom: '4px' }}>Digvijaysinh is {e.title}</strong>
                         </div>
                       ))}
 
