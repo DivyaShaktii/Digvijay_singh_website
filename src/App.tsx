@@ -1024,7 +1024,7 @@ function AdminPage({ navigate, courses, galleryItems, heroImageUrl, setHeroImage
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "" });
-  const [eventForm, setEventForm] = useState({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' as const });
+  const [eventForm, setEventForm] = useState<{title: string, date: string, type: CalendarEvent['type']}>({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState("");
