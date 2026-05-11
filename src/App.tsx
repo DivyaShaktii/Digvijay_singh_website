@@ -902,7 +902,7 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate }: { 
                               {availableSlots.map((e, idx) => (
                                 <div key={e.id} style={{ padding: '12px', borderBottom: idx === availableSlots.length - 1 ? 'none' : '1px solid #eee' }}>
                                   <strong style={{ display: 'block', fontSize: '15px', color: '#2c3e50' }}>{e.title}</strong>
-                                  <span style={{ fontSize: '12px', color: '#666' }}>{e.type === 'class' ? 'Class Session' : 'Individual Slot'}</span>
+                                  <span style={{ fontSize: '12px', color: '#666' }}>Available</span>
                                 </div>
                               ))}
                             </div>
