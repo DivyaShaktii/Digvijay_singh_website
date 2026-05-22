@@ -47,6 +47,10 @@ a {
   min-height: 100vh;
 }
 
+main.has-header {
+  padding-top: 80px;
+}
+
 .container {
   width: 100%;
   max-width: 1200px;
@@ -73,7 +77,8 @@ a {
   top: 0;
   left: 0;
   width: 100%;
-  padding: 24px 40px;
+  height: 80px;
+  padding: 0 40px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -85,8 +90,15 @@ a {
 .site-header.scrolled {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  padding: 16px 40px;
+  padding: 0 40px;
+  height: 70px;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.site-header.dark-mode {
+  background: #000000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .nav-container {
@@ -184,7 +196,7 @@ a {
 /* Hero Section */
 .hero {
   position: relative;
-  height: 100vh;
+  height: calc(100vh - 80px);
   background-color: #000;
   display: flex;
   align-items: center;

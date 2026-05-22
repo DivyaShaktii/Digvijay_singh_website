@@ -377,7 +377,7 @@ function App() {
         </header>
       )}
 
-      <main>
+      <main className={!onAdminPage ? "has-header" : ""}>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage bioImageUrl={bioImageUrl} bioParagraphs={bioParagraphs} bioAwards={bioAwards} />}
         {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} weeklySchedule={weeklySchedule} />}
