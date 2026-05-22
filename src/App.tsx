@@ -40,9 +40,16 @@ interface Enrollment {
 
 const STORAGE_KEY = "flute_courses";
 
-function getYouTubeId(url: string): string | null {
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
-  return match ? match[1] : null;
+function getYouTubeId(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/|live\/)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2] && match[2].length === 11) {
+    return match[2];
+  }
+  const fallbackMatch = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|$)/);
+  if (fallbackMatch) return fallbackMatch[1];
+  return null;
 }
 
 function loadCourses(): Course[] {
@@ -116,6 +123,18 @@ function App() {
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
   const [heroImageUrl, setHeroImageUrl] = useState<string>(images.hero);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const defaultWeeklySchedule: Record<string, Record<string, string>> = {
+    "5-6 AM": { MON: "", TUE: "Thiag", WED: "", THU: "", FRI: "", SAT: "Suchi", SUN: "Ram" },
+    "6-7 AM": { MON: "", TUE: "", WED: "", THU: "", FRI: "", SAT: "", SUN: "" },
+    "7-8 AM": { MON: "", TUE: "Haren", WED: "", THU: "", FRI: "Subhash", SAT: "Ajay/deb", SUN: "Sneham" },
+    "8-9 AM": { MON: "Karthik", TUE: "Abhisk", WED: "", THU: "", FRI: "Sang", SAT: "Vikas", SUN: "Dhiraj10" },
+    "2-3 PM": { MON: "Rajiv", TUE: "Utsav", WED: "", THU: "", FRI: "Jagroop", SAT: "Bikram", SUN: "Mayur/ayan" },
+    "5-6 PM": { MON: "Sd", TUE: "Sd", WED: "", THU: "", FRI: "Sd", SAT: "Aditya", SUN: "Momen" },
+    "6-7 PM": { MON: "", TUE: "", WED: "", THU: "", FRI: "", SAT: "Satanu", SUN: "" },
+    "7-8 PM": { MON: "", TUE: "Gc", WED: "", THU: "", FRI: "Gc", SAT: "GC", SUN: "Binod" },
+    "8-9 PM": { MON: "", TUE: "Gc", WED: "", THU: "", FRI: "Gc", SAT: "GC", SUN: "" }
+  };
+  const [weeklySchedule, setWeeklySchedule] = useState<Record<string, Record<string, string>>>(defaultWeeklySchedule);
   const [introVideo, setIntroVideo] = useState({
     url: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Default fallback
     title: "Introductory Video",
@@ -125,6 +144,18 @@ function App() {
   const [announcements, setAnnouncements] = useState<{title: string, text: string}[]>([
     { title: "New Advanced Raag Course Coming Soon!", text: "We are launching an intensive course on Raag Yaman next month. Registrations open shortly." },
     { title: "LMS Feature Update", text: "You can now download course materials and certificates directly from your dashboard." }
+  ]);
+  const [bioImageUrl, setBioImageUrl] = useState<string>(images.bio);
+  const [bioParagraphs, setBioParagraphs] = useState<string[]>([
+    "Digvijaysinh Chauhan is a renowned Indian classical flautist and a dedicated disciple of Padma Vibhushan Pandit Hariprasad Chaurasia ji. His musical journey is rooted in the authentic Guru-Shishya Parampara system at Vrindaban Gurukul, Bhubaneswar.",
+    "A PhD scholar in Electronics Engineering, Digvijay represents a rare blend of scientific precision and artistic depth. His style of playing reflects the pure tone, clear raga presentation, and deeply expressive approach of the Maihar tradition.",
+    "Through his brand 'Flute Roots | Nothing But Music', he is committed to preserving and promoting the traditional art of bansuri while exploring contemporary collaborations that resonate with global audiences."
+  ]);
+  const [bioAwards, setBioAwards] = useState<string[]>([
+    "Sanskar Vibhushan Samman",
+    "CCRT Scholarship",
+    "OMC Foundation Award",
+    "NALCO Cultural Honor"
   ]);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,6 +198,42 @@ function App() {
         const setup = settings.find(s => s.key === 'stage_setup_url_1');
         if (setup) setStageSetupUrl(setup.value);
 
+        const bioImage = settings.find(s => s.key === 'bio_image_url');
+        if (bioImage) {
+          setBioImageUrl(bioImage.value);
+        } else {
+          const localBioImage = localStorage.getItem('local_bio_image');
+          if (localBioImage) setBioImageUrl(localBioImage);
+        }
+
+        const bioParaJson = settings.find(s => s.key === 'bio_paragraphs_json');
+        if (bioParaJson) {
+          try {
+            setBioParagraphs(JSON.parse(bioParaJson.value));
+          } catch (e) { console.error("Error parsing bio paragraphs:", e); }
+        } else {
+          const localBioParas = localStorage.getItem('local_bio_paragraphs');
+          if (localBioParas) {
+            try {
+              setBioParagraphs(JSON.parse(localBioParas));
+            } catch (e) { console.error(e); }
+          }
+        }
+
+        const bioAwardsJson = settings.find(s => s.key === 'bio_awards_json');
+        if (bioAwardsJson) {
+          try {
+            setBioAwards(JSON.parse(bioAwardsJson.value));
+          } catch (e) { console.error("Error parsing bio awards:", e); }
+        } else {
+          const localBioAwards = localStorage.getItem('local_bio_awards');
+          if (localBioAwards) {
+            try {
+              setBioAwards(JSON.parse(localBioAwards));
+            } catch (e) { console.error(e); }
+          }
+        }
+
         // Load announcements from JSON or individual keys
         const annJson = settings.find(s => s.key === 'course_announcements_json');
         if (annJson) {
@@ -183,9 +250,35 @@ function App() {
           if (ann2Title || ann2Text) loadedAnn.push({ title: ann2Title?.value || "", text: ann2Text?.value || "" });
           if (loadedAnn.length > 0) setAnnouncements(loadedAnn);
         }
+
+        // Load weekly schedule from database or local storage cache
+        const scheduleJson = settings.find(s => s.key === 'weekly_schedule_json');
+        if (scheduleJson) {
+          try {
+            setWeeklySchedule(JSON.parse(scheduleJson.value));
+          } catch (e) { console.error("Error parsing weekly schedule:", e); }
+        } else {
+          const localSchedule = localStorage.getItem('local_weekly_schedule');
+          if (localSchedule) {
+            try {
+              setWeeklySchedule(JSON.parse(localSchedule));
+            } catch (e) { console.error(e); }
+          }
+        }
       }
 
       if (!eventsRes.error) setCalendarEvents(eventsRes.data || []);
+
+      // Fetch enrollments if user session exists to keep enrollment state in sync instantly
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: enrollData } = await supabase.from('enrollments').select('course_id').eq('user_id', session.user.id);
+        if (enrollData) {
+          setEnrollments(enrollData.map(e => e.course_id));
+        }
+      } else {
+        setEnrollments([]);
+      }
 
       isInitialLoad.current = false;
     } catch (err) {
@@ -286,9 +379,9 @@ function App() {
 
       <main>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
-        {route === "biography" && <BiographyPage />}
-        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} />}
-        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} />}
+        {route === "biography" && <BiographyPage bioImageUrl={bioImageUrl} bioParagraphs={bioParagraphs} bioAwards={bioAwards} />}
+        {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} weeklySchedule={weeklySchedule} />}
+        {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} weeklySchedule={weeklySchedule} />}
         {route === "contact" && <ContactPage />}
         {route === "coursePlayer" && activeCourseId && <CoursePlayerPage courseId={activeCourseId} courses={courses} user={user} navigate={navigate} announcements={announcements} />}
         {route === "admin" && (isUserAdmin ? (
@@ -304,8 +397,16 @@ function App() {
             setStageSetupUrl={setStageSetupUrl}
             announcements={announcements}
             setAnnouncements={setAnnouncements}
+            bioImageUrl={bioImageUrl}
+            setBioImageUrl={setBioImageUrl}
+            bioParagraphs={bioParagraphs}
+            setBioParagraphs={setBioParagraphs}
+            bioAwards={bioAwards}
+            setBioAwards={setBioAwards}
             onRefresh={fetchData} 
             user={user}
+            weeklySchedule={weeklySchedule}
+            setWeeklySchedule={setWeeklySchedule}
           />
         ) : <LoginPage navigate={navigate} />)}
         {route === "login" && <LoginPage navigate={navigate} />}
@@ -360,8 +461,15 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
             }}
           />
         </div>
-        <div className="hero-content hero-top-right">
-          <h1 className="hero-title serif-title">{artistProfile.name}</h1>
+        <div className="hero-content hero-top-left">
+          <h1 className="hero-title serif-title">
+            {artistProfile.name.split(" ").map((word, i) => (
+              <React.Fragment key={i}>
+                {word}
+                {i < artistProfile.name.split(" ").length - 1 && <br />}
+              </React.Fragment>
+            ))}
+          </h1>
         </div>
       </section>
 
@@ -422,7 +530,30 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
   );
 }
 
-function BiographyPage() {
+function BiographyPage({ 
+  bioImageUrl, 
+  bioParagraphs, 
+  bioAwards 
+}: { 
+  bioImageUrl?: string, 
+  bioParagraphs?: string[], 
+  bioAwards?: string[] 
+}) {
+  const currentBioImage = bioImageUrl || images.bio;
+  const defaultParagraphs = [
+    "Digvijaysinh Chauhan is a renowned Indian classical flautist and a dedicated disciple of Padma Vibhushan Pandit Hariprasad Chaurasia ji. His musical journey is rooted in the authentic Guru-Shishya Parampara system at Vrindaban Gurukul, Bhubaneswar.",
+    "A PhD scholar in Electronics Engineering, Digvijay represents a rare blend of scientific precision and artistic depth. His style of playing reflects the pure tone, clear raga presentation, and deeply expressive approach of the Maihar tradition.",
+    "Through his brand 'Flute Roots | Nothing But Music', he is committed to preserving and promoting the traditional art of bansuri while exploring contemporary collaborations that resonate with global audiences."
+  ];
+  const currentParagraphs = bioParagraphs && bioParagraphs.length > 0 ? bioParagraphs : defaultParagraphs;
+  const defaultAwards = [
+    "Sanskar Vibhushan Samman",
+    "CCRT Scholarship",
+    "OMC Foundation Award",
+    "NALCO Cultural Honor"
+  ];
+  const currentAwards = bioAwards && bioAwards.length > 0 ? bioAwards : defaultAwards;
+
   return (
     <>
       <section className="page-hero">
@@ -431,19 +562,13 @@ function BiographyPage() {
 
       <section className="bio-section">
         <div className="bio-grid">
-          <img src={images.bio} alt={artistProfile.name} className="bio-image" />
+          <img src={currentBioImage} alt={artistProfile.name} className="bio-image" />
           <div className="bio-content">
             <h3>{artistProfile.name}</h3>
             <div className="bio-text">
-              <p>
-                Digvijaysinh Chauhan is a renowned Indian classical flautist and a dedicated disciple of Padma Vibhushan Pandit Hariprasad Chaurasia ji. His musical journey is rooted in the authentic Guru-Shishya Parampara system at Vrindaban Gurukul, Bhubaneswar.
-              </p>
-              <p>
-                A PhD scholar in Electronics Engineering, Digvijay represents a rare blend of scientific precision and artistic depth. His style of playing reflects the pure tone, clear raga presentation, and deeply expressive approach of the Maihar tradition.
-              </p>
-              <p>
-                Through his brand 'Flute Roots | Nothing But Music', he is committed to preserving and promoting the traditional art of bansuri while exploring contemporary collaborations that resonate with global audiences.
-              </p>
+              {currentParagraphs.map((para, index) => (
+                <p key={index}>{para}</p>
+              ))}
             </div>
           </div>
         </div>
@@ -452,10 +577,9 @@ function BiographyPage() {
       <section className="recognition">
         <p className="eyebrow">Awards & Recognition</p>
         <div className="logo-grid">
-          <span className="text-serif">Sanskar Vibhushan Samman</span>
-          <span className="text-serif">CCRT Scholarship</span>
-          <span className="text-serif">OMC Foundation Award</span>
-          <span className="text-serif">NALCO Cultural Honor</span>
+          {currentAwards.map((award, index) => (
+            <span key={index} className="text-serif">{award}</span>
+          ))}
         </div>
       </section>
     </>
@@ -464,7 +588,7 @@ function BiographyPage() {
 
 
 
-function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, announcements, onRefresh, heroImageUrl, loading, isUserAdmin, setActiveCourseId }: { 
+function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, announcements, onRefresh, heroImageUrl, loading, isUserAdmin, setActiveCourseId, weeklySchedule }: { 
   navigate: (to: AppRoute) => void, 
   courses: Course[], 
   user: any, 
@@ -475,7 +599,8 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
   heroImageUrl: string,
   loading: boolean,
   isUserAdmin: boolean,
-  setActiveCourseId: (id: string) => void
+  setActiveCourseId: (id: string) => void,
+  weeklySchedule: Record<string, Record<string, string>>
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [payingFor, setPayingFor] = useState<string | null>(null);
@@ -757,7 +882,7 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                       color: '#ffffff',
                       fontWeight: 700 
                     }}>{course.title}</h3>
-                    <p className="course-meta" style={{ fontSize: '14px', color: '#a0a0a0', margin: '0 0 16px' }}>Digvijaysinh Chauhan</p>
+                    <p className="course-meta" style={{ fontSize: '14px', color: '#a0a0a0', margin: '0 0 16px' }}>{artistProfile.name}</p>
                     
                     <div style={{ marginTop: 'auto' }}>
                       {isEnrolled ? (
@@ -840,19 +965,6 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         
       </section>
 
-      <section className="courses-cta">
-        <div className="courses-cta-content">
-          <h2 className="text-serif">Book a Live Online Class</h2>
-          <p>Check my availability and book a personalized one-on-one session.</p>
-          
-          <div style={{ maxWidth: '500px', margin: '40px auto' }}>
-            <SimpleCalendar onDateSelect={(d) => alert("Checking availability for " + d + ". Please contact via the form below.")} events={calendarEvents} />
-          </div>
-          
-          <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="courses-cta-btn">Enquire for Slot</a>
-        </div>
-      </section>
-
       {/* Udemy-style Checkout Modal */}
       {checkoutCourse && (
         <div className="checkout-modal-overlay">
@@ -918,14 +1030,29 @@ function CoursePlayerPage({ courseId, courses, user, navigate, announcements }: 
     const fetchSignedUrl = async () => {
       if (!course) return;
       setLoading(true);
-      if (course.video_url.includes('supabase.co')) {
-        const path = course.video_url.split('/').pop() || "";
-        const { data } = await supabase.storage.from('course-media').createSignedUrl(path, 7200);
-        if (data) setVideoUrl(data.signedUrl);
-      } else {
-        setVideoUrl(course.video_url);
+      try {
+        if (!course.video_url) {
+          setVideoUrl(null);
+        } else if (course.video_url.includes('supabase.co')) {
+          const path = course.video_url.split('/').pop() || "";
+          const { data, error } = await supabase.storage.from('course-media').createSignedUrl(path, 7200);
+          if (error) {
+            console.error("Error creating signed URL:", error);
+            setVideoUrl(course.video_url); // fallback
+          } else if (data) {
+            setVideoUrl(data.signedUrl);
+          } else {
+            setVideoUrl(course.video_url);
+          }
+        } else {
+          setVideoUrl(course.video_url);
+        }
+      } catch (err) {
+        console.error("Error in fetchSignedUrl:", err);
+        setVideoUrl(course.video_url || null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchSignedUrl();
   }, [course]);
@@ -956,23 +1083,71 @@ function CoursePlayerPage({ courseId, courses, user, navigate, announcements }: 
       <div className="player-layout">
         <div className="player-main">
           <div className="player-video-section">
-            <div className="player-video-container">
+            <div 
+              className="player-video-container"
+              onContextMenu={(e) => e.preventDefault()}
+            >
               {loading ? (
                 <div className="player-loader" style={{ color: '#fff' }}>Loading Video...</div>
               ) : videoUrl ? (
-                <video 
-                  src={videoUrl} 
-                  className="player-video-element" 
-                  controls 
-                  controlsList="nodownload"
-                  onTimeUpdate={(e: any) => {
-                    localStorage.setItem(`progress_${course.id}_${user?.id || 'anon'}`, e.target.currentTime);
-                  }}
-                  onLoadedMetadata={(e: any) => {
-                    const savedTime = localStorage.getItem(`progress_${course.id}_${user?.id || 'anon'}`);
-                    if (savedTime) e.target.currentTime = parseFloat(savedTime);
-                  }}
-                />
+                (() => {
+                  const ytId = getYouTubeId(videoUrl);
+                  const isYt = videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be");
+                  if (ytId || isYt) {
+                    const embedSrc = ytId 
+                      ? `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&controls=1&disablekb=1&origin=${encodeURIComponent(window.location.origin)}`
+                      : videoUrl;
+                    return (
+                      <>
+                        <iframe
+                          src={embedSrc}
+                          className="player-video-element"
+                          style={{ border: 'none' }}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                        {/* Top click-blocking overlay (Covers YouTube title, share, info) */}
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: '52px',
+                          background: 'transparent',
+                          zIndex: 10,
+                          cursor: 'default'
+                        }} />
+                        
+                        {/* Bottom-right click-blocking overlay (Covers YouTube logo watermark, above the player control bar) */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '48px',
+                          right: '12px',
+                          width: '90px',
+                          height: '40px',
+                          background: 'transparent',
+                          zIndex: 10,
+                          cursor: 'default'
+                        }} />
+                      </>
+                    );
+                  }
+                  return (
+                    <video 
+                      src={videoUrl} 
+                      className="player-video-element" 
+                      controls 
+                      controlsList="nodownload"
+                      onTimeUpdate={(e: any) => {
+                        localStorage.setItem(`progress_${course.id}_${user?.id || 'anon'}`, e.target.currentTime);
+                      }}
+                      onLoadedMetadata={(e: any) => {
+                        const savedTime = localStorage.getItem(`progress_${course.id}_${user?.id || 'anon'}`);
+                        if (savedTime) e.target.currentTime = parseFloat(savedTime);
+                      }}
+                    />
+                  );
+                })()
               ) : (
                 <div className="player-error">Video not available</div>
               )}
@@ -1072,88 +1247,76 @@ function CoursePlayerPage({ courseId, courses, user, navigate, announcements }: 
   );
 }
 
-function SimpleCalendar({ onDateSelect, selectedDate, events = [] }: { onDateSelect: (date: string) => void, selectedDate?: string, events?: CalendarEvent[] }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  
-  const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-  
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  
-  const days = [];
-  for (let i = 0; i < firstDayOfMonth(year, month); i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth(year, month); i++) {
-    days.push(i);
-  }
-  
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
-  const handlePrev = () => setCurrentDate(new Date(year, month - 1, 1));
-  const handleNext = () => setCurrentDate(new Date(year, month + 1, 1));
+
+function WeeklyScheduleTable({ schedule }: { schedule: Record<string, Record<string, string>> }) {
+  const timeSlots = [
+    "5-6 AM", "6-7 AM", "7-8 AM", "8-9 AM", "2-3 PM", "5-6 PM", "6-7 PM", "7-8 PM", "8-9 PM"
+  ];
   
   return (
-    <div className="simple-calendar" style={{ background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)', width: '100%' }}>
-      <div className="calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h3 style={{ margin: 0, fontSize: '20px', fontFamily: 'var(--font-serif)' }}>{monthNames[month]} {year}</h3>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={handlePrev} style={{ background: '#f5f5f5', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>&lt;</button>
-          <button onClick={handleNext} style={{ background: '#f5f5f5', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>&gt;</button>
-        </div>
-      </div>
-      <div className="calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center' }}>
-        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
-          <div key={day} style={{ fontWeight: '600', fontSize: '12px', color: '#999', paddingBottom: '8px' }}>{day}</div>
-        ))}
-        {days.map((day, i) => {
-          const dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
-          const isSelected = selectedDate === dateStr;
-          const isToday = day && new Date().toDateString() === new Date(year, month, day).toDateString();
-          const dayEvents = events.filter(e => e.date === dateStr);
-          const isBlocked = dayEvents.some(e => e.type === 'blocked' || e.type === 'performance');
-          const isAvailable = dayEvents.some(e => e.type === 'available' || e.type === 'class');
-          
-          return (
-            <div 
-              key={i} 
-              onClick={() => dateStr && onDateSelect(dateStr)}
-              style={{ 
-                padding: '12px 0', 
-                borderRadius: '8px', 
-                cursor: day ? 'pointer' : 'default',
-                background: isSelected ? 'var(--gold)' : (isToday ? '#fcfaf7' : 'transparent'),
-                color: isSelected ? 'white' : (day ? 'inherit' : 'transparent'),
-                fontWeight: isSelected || isToday ? '600' : '400',
-                border: isToday && !isSelected ? '1px solid var(--gold)' : 'none',
-                position: 'relative',
-                transition: 'all 0.2s'
-              }}
-            >
-              {day}
-              {!isSelected && (
-                <div style={{ position: 'absolute', bottom: '4px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '2px' }}>
-                  {isBlocked && (
-                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--gold)' }}></div>
-                  )}
-                  {isAvailable && (
-                    <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#4CAF50' }}></div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+    <div className="weekly-schedule-container">
+      <table className="weekly-schedule-table">
+        <thead>
+          <tr>
+            <th>TIMING</th>
+            <th>MON</th>
+            <th>TUE</th>
+            <th>WED</th>
+            <th>THU</th>
+            <th>FRI</th>
+            <th>SAT</th>
+            <th>SUN</th>
+          </tr>
+        </thead>
+        <tbody>
+          {timeSlots.map(slot => {
+            const row = schedule[slot] || {};
+            return (
+              <tr key={slot}>
+                <td className="timing-col">{slot}</td>
+                <td>{row.MON || ""}</td>
+                <td>{row.TUE || ""}</td>
+                <td>{row.WED || ""}</td>
+                <td>{row.THU || ""}</td>
+                <td>{row.FRI || ""}</td>
+                <td>{row.SAT || ""}</td>
+                <td>{row.SUN || ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stageSetupUrl }: { images: GalleryImage[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void, stageSetupUrl: string }) {
+function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stageSetupUrl, weeklySchedule }: { images: GalleryImage[], calendarEvents: CalendarEvent[], navigate: (to: AppRoute) => void, stageSetupUrl: string, weeklySchedule: Record<string, Record<string, string>> }) {
   const displayImages = dbImages.length > 0 ? dbImages.map(img => img.image_url) : images.gallery;
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [showSlots, setShowSlots] = useState(false);
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeImageIndex === null) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveImageIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setActiveImageIndex((prev) => (prev !== null ? (prev - 1 + displayImages.length) % displayImages.length : null));
+      } else if (e.key === 'ArrowRight') {
+        setActiveImageIndex((prev) => (prev !== null ? (prev + 1) % displayImages.length : null));
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [activeImageIndex, displayImages.length]);
   
   const selectedDayEvents = calendarEvents.filter(e => e.date === selectedDate);
   const bookedEvents = selectedDayEvents.filter(e => e.type === 'performance' || e.type === 'blocked');
@@ -1189,28 +1352,28 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
       <section style={{ padding: '80px 0', background: '#fcfaf7' }}>
         <div className="container">
           <h2 className="serif-title text-center" style={{ marginBottom: '60px', fontSize: '36px' }}>Moments from Performances</h2>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(3, 1fr)', 
-            gap: '30px',
-            width: '100%'
-          }}>
-            {displayImages.slice(0, 6).map((src, i) => (
-              <div key={i} style={{ 
-                borderRadius: '4px', 
-                overflow: 'hidden', 
-                height: '300px',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.05)'
-              }}>
-                <img src={src} alt={`Gallery image ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-            ))}
+          <div className="masonry-gallery">
+            {displayImages.map((src, i) => {
+              // Elegant staggered heights to create a clean collage masonry while filling from left-to-right
+              const heights = ['230px', '320px', '270px', '240px', '300px', '260px'];
+              const itemHeight = heights[i % heights.length];
+              return (
+                <div 
+                  key={i} 
+                  className="masonry-item" 
+                  style={{ height: itemHeight, cursor: 'pointer' }}
+                  onClick={() => setActiveImageIndex(i)}
+                >
+                  <img src={src} alt={`Gallery image ${i + 1}`} />
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
       <section className="quote-section" style={{ background: '#1c1d1f' }}>
-        <p className="quote-text text-serif text-italic">
+        <p className="quote-text text-serif text-italic" style={{ color: '#fdfaf6' }}>
           "The bansuri is an extension of the breath, and through it, one breathes life into the silence."
         </p>
       </section>
@@ -1254,95 +1417,59 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
         </div>
       </section>
 
-      {/* Upcoming Event Band / Calendar Section */}
-      <section className="calendar-band" style={{ padding: '60px 0', background: '#fcfaf7' }}>
+      {/* Weekly Schedule Section */}
+      <section style={{ padding: '80px 0', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
         <div className="container">
-          <div className="calendar-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'start' }}>
-            <div className="calendar-info">
-              <span className="eyebrow">Availability</span>
-              <h2 className="serif-title" style={{ fontSize: '36px', marginBottom: '24px' }}>Upcoming Schedule</h2>
-              <p style={{ color: '#666', lineHeight: '1.8', marginBottom: '32px' }}>
-                Organizers can check my availability for concerts, workshops, and private sessions. Use the calendar to see booked dates and open slots.
-              </p>
-                <div className="event-details-card" style={{ background: 'white', padding: '32px', borderRadius: '12px', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', borderTop: '4px solid var(--gold)' }}>
-                  <h4 style={{ marginBottom: '24px', color: '#2c3e50', fontFamily: 'var(--font-serif)', fontSize: '20px' }}>
-                    {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                  </h4>
-                  
-                  {selectedDayEvents.length > 0 ? (
-                    <div className="events-list">
-                      {/* Booked Events Section */}
-                      {bookedEvents.map(e => (
-                        <div key={e.id} style={{ padding: '16px', background: '#fff9f2', borderRadius: '8px', borderLeft: '4px solid var(--gold)', marginBottom: '16px' }}>
-                          <span style={{ display: 'block', fontSize: '12px', color: '#c5a059', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Status: Booked</span>
-                          <strong style={{ display: 'block', fontSize: '18px', marginBottom: '4px' }}>Digvijaysinh is {e.title}</strong>
-                        </div>
-                      ))}
-
-                      {/* Available Slots Section with Dropdown */}
-                      {availableSlots.length > 0 && (
-                        <div className="available-slots-container" style={{ marginBottom: '16px' }}>
-                          <button 
-                            onClick={() => setShowSlots(!showSlots)}
-                            style={{ 
-                              width: '100%', 
-                              padding: '16px', 
-                              background: '#f2fff2', 
-                              border: '1px solid #4CAF50', 
-                              borderRadius: '8px', 
-                              display: 'flex', 
-                              justifyContent: 'space-between', 
-                              alignItems: 'center',
-                              cursor: 'pointer',
-                              textAlign: 'left'
-                            }}
-                          >
-                            <div>
-                              <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>Slots Available</span>
-                              <strong style={{ display: 'block', fontSize: '16px', color: '#2c3e50' }}>{availableSlots.length} Slots Found</strong>
-                            </div>
-                            <span style={{ fontSize: '20px', transition: 'transform 0.3s', transform: showSlots ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
-                          </button>
-                          
-                          {showSlots && (
-                            <div className="slots-dropdown" style={{ marginTop: '8px', paddingLeft: '8px', borderLeft: '2px solid #4CAF50' }}>
-                              {availableSlots.map((e, idx) => (
-                                <div key={e.id} style={{ padding: '12px', borderBottom: idx === availableSlots.length - 1 ? 'none' : '1px solid #eee' }}>
-                                  <strong style={{ display: 'block', fontSize: '15px', color: '#2c3e50' }}>{e.title}</strong>
-                                  <span style={{ fontSize: '12px', color: '#666' }}>Available</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!isBlocked && (
-                        <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center', marginTop: '8px' }}>
-                          Contact to Book a Slot
-                        </a>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="status-indicator">
-                      <span style={{ display: 'block', fontSize: '12px', color: '#4CAF50', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>Slots Available</span>
-                      <strong style={{ display: 'block', fontSize: '18px', marginBottom: '8px' }}>Available for Sessions</strong>
-                      <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
-                        This date is currently open for concerts, workshops, or private flute sessions.
-                      </p>
-                      <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="admin-btn admin-btn-primary" style={{ display: 'inline-block', textDecoration: 'none', width: '100%', textAlign: 'center' }}>
-                        Contact for a Session
-                      </a>
-                    </div>
-                  )}
-                </div>
-            </div>
-            <div className="calendar-wrapper">
-               <SimpleCalendar onDateSelect={setSelectedDate} selectedDate={selectedDate} events={calendarEvents} />
-            </div>
-          </div>
+          <h2 className="serif-title text-center" style={{ marginBottom: '20px', fontSize: '36px' }}>Weekly Availability Routine</h2>
+          <p style={{ color: '#666', textAlign: 'center', maxWidth: '600px', margin: '0 auto 40px auto', lineHeight: '1.6' }}>
+            Below is the standard weekly routine. Green/text filled cells indicate regular scheduled class slots, practice times, or ongoing student sessions.
+          </p>
+          <WeeklyScheduleTable schedule={weeklySchedule} />
         </div>
       </section>
+
+      {/* Lightbox Modal */}
+      {activeImageIndex !== null && (
+        <div 
+          className="lightbox-overlay"
+          onClick={() => setActiveImageIndex(null)}
+        >
+          <button 
+            className="lightbox-close" 
+            onClick={(e) => { e.stopPropagation(); setActiveImageIndex(null); }}
+            aria-label="Close lightbox"
+          >
+            &times;
+          </button>
+          
+          <button 
+            className="lightbox-nav lightbox-prev" 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              setActiveImageIndex((prev) => (prev !== null ? (prev - 1 + displayImages.length) % displayImages.length : null)); 
+            }}
+            aria-label="Previous image"
+          >
+            &#10216;
+          </button>
+
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={displayImages[activeImageIndex]} alt={`Enlarged moment ${activeImageIndex + 1}`} />
+          </div>
+
+          <button 
+            className="lightbox-nav lightbox-next" 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              setActiveImageIndex((prev) => (prev !== null ? (prev + 1) % displayImages.length : null)); 
+            }}
+            aria-label="Next image"
+          >
+            &#10217;
+          </button>
+        </div>
+      )}
+
     </>
   );
 }
@@ -1429,8 +1556,16 @@ function AdminPage({
   setStageSetupUrl,
   announcements,
   setAnnouncements,
+  bioImageUrl,
+  setBioImageUrl,
+  bioParagraphs,
+  setBioParagraphs,
+  bioAwards,
+  setBioAwards,
   onRefresh, 
-  user 
+  user,
+  weeklySchedule,
+  setWeeklySchedule
 }: { 
   navigate: (to: AppRoute) => void,
   courses: Course[], 
@@ -1443,19 +1578,40 @@ function AdminPage({
   setStageSetupUrl: (url: string) => void,
   announcements: {title: string, text: string}[],
   setAnnouncements: (anns: {title: string, text: string}[]) => void,
+  bioImageUrl: string,
+  setBioImageUrl: (url: string) => void,
+  bioParagraphs: string[],
+  setBioParagraphs: (paras: string[]) => void,
+  bioAwards: string[],
+  setBioAwards: (awards: string[]) => void,
   onRefresh: () => void,
-  user: any
+  user: any,
+  weeklySchedule: Record<string, Record<string, string>>,
+  setWeeklySchedule: React.Dispatch<React.SetStateAction<Record<string, Record<string, string>>>>
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "", notes_url: "", announcement: "" });
-  const [eventForm, setEventForm] = useState<{title: string, date: string, type: CalendarEvent['type']}>({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
+  const [videoSource, setVideoSource] = useState<'youtube' | 'mp4'>('youtube');
+  const [editedSchedule, setEditedSchedule] = useState<Record<string, Record<string, string>>>(weeklySchedule);
+  
+  useEffect(() => {
+    setEditedSchedule(weeklySchedule);
+  }, [weeklySchedule]);
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState("");
   const [introForm, setIntroForm] = useState(introVideo);
   const [announcementForm, setAnnouncementForm] = useState(announcements);
   const [videoFiles, setVideoFiles] = useState<{name: string, url: string}[]>([]);
+
+  const [activeTab, setActiveTab] = useState<'homepage' | 'biography' | 'courses' | 'calendar' | 'organizers'>('homepage');
+  const [bioFormImageUrl, setBioFormImageUrl] = useState<string>(bioImageUrl);
+  const [bioFormParagraphs, setBioFormParagraphs] = useState<string[]>(bioParagraphs);
+  const [bioFormAwards, setBioFormAwards] = useState<string[]>(bioAwards);
+
+  useEffect(() => { setBioFormImageUrl(bioImageUrl); }, [bioImageUrl]);
+  useEffect(() => { setBioFormParagraphs(bioParagraphs); }, [bioParagraphs]);
+  useEffect(() => { setBioFormAwards(bioAwards); }, [bioAwards]);
 
   // Fetch videos from storage bucket
   const fetchVideos = useCallback(async () => {
@@ -1502,6 +1658,7 @@ function AdminPage({
   const resetForm = () => {
     setForm({ title: "", description: "", level: "Beginner", duration: "", lessons: 0, price: "", video_url: "", thumbnail_url: "", notes_url: "", announcement: "" });
     setEditingId(null);
+    setVideoSource('youtube');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucket: 'course-media' | 'gallery-photos') => {
@@ -1547,7 +1704,8 @@ function AdminPage({
           .getPublicUrl(fileName);
 
         if (bucket === 'course-media') {
-          setForm({ ...form, video_url: publicUrl });
+          setForm(prev => ({ ...prev, video_url: publicUrl }));
+          fetchVideos();
           showToast("Video uploaded successfully!");
         } else {
           const { error: dbError } = await supabase
@@ -1801,71 +1959,6 @@ function AdminPage({
     }
   };
 
-  const handleAddEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!eventForm.title || !eventForm.date) return;
-    
-    setUploading('event-add');
-    try {
-      if (editingEventId) {
-        const { error } = await supabase.from('events').update(eventForm).eq('id', editingEventId);
-        if (error) throw error;
-        showToast("Event updated!");
-      } else {
-        const { error } = await supabase.from('events').insert([eventForm]);
-        if (error) throw error;
-        showToast("Event added to calendar!");
-      }
-      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
-      setEditingEventId(null);
-      onRefresh();
-    } catch (err: any) {
-      console.error("EVENT SAVE ERROR:", err);
-      
-      const local = JSON.parse(localStorage.getItem('local_events') || '[]');
-      if (editingEventId) {
-        const updated = local.map((ev: any) => ev.id === editingEventId ? { ...ev, ...eventForm } : ev);
-        localStorage.setItem('local_events', JSON.stringify(updated));
-        showToast("Event updated locally");
-      } else {
-        const newEvent = { ...eventForm, id: Date.now().toString() };
-        localStorage.setItem('local_events', JSON.stringify([...local, newEvent]));
-        showToast("Event saved locally");
-      }
-      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
-      setEditingEventId(null);
-      onRefresh();
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const handleEditEvent = (ev: CalendarEvent) => {
-    setEditingEventId(ev.id);
-    setEventForm({
-      title: ev.title,
-      date: ev.date,
-      type: ev.type
-    });
-    // Scroll to the event form
-    const el = document.getElementById('calendar-management-card');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleDeleteEvent = async (id: string) => {
-    if (!confirm("Remove this event?")) return;
-    try {
-      const { error } = await supabase.from('events').delete().eq('id', id);
-      if (error) throw error;
-      showToast("Event removed.");
-      onRefresh();
-    } catch (err: any) {
-      const local = JSON.parse(localStorage.getItem('local_events') || '[]');
-      localStorage.setItem('local_events', JSON.stringify(local.filter((e: any) => e.id !== id)));
-      showToast("Event removed locally.");
-      onRefresh();
-    }
-  };
 
   const handleEdit = (course: Course) => {
     setEditingId(course.id);
@@ -1881,6 +1974,8 @@ function AdminPage({
       notes_url: course.notes_url || "",
       announcement: course.announcement || ""
     });
+    const isYt = course.video_url && (course.video_url.includes("youtube.com") || course.video_url.includes("youtu.be"));
+    setVideoSource(isYt ? 'youtube' : 'mp4');
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -2069,6 +2164,143 @@ function AdminPage({
     }
   };
 
+  const handleSaveWeeklySchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading('weekly-schedule-save');
+    try {
+      const jsonStr = JSON.stringify(editedSchedule);
+      
+      const { error } = await supabase.from('settings').upsert({ 
+        key: 'weekly_schedule_json', 
+        value: jsonStr 
+      }, { onConflict: 'key' });
+      
+      if (error) throw error;
+      
+      localStorage.setItem('local_weekly_schedule', jsonStr);
+      setWeeklySchedule(editedSchedule);
+      showToast("Weekly schedule updated successfully!");
+      onRefresh();
+    } catch (err: any) {
+      console.error("Weekly Schedule Save Error:", err);
+      // Fallback
+      localStorage.setItem('local_weekly_schedule', JSON.stringify(editedSchedule));
+      setWeeklySchedule(editedSchedule);
+      showToast("Saved locally (offline/sync error)");
+      onRefresh();
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleBioPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading('bio-pic');
+    try {
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image is too large (>10MB).");
+        setUploading(null);
+        return;
+      }
+
+      const fileExt = file.name ? file.name.split('.').pop() : 'png';
+      const fileName = `bio_profile_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('gallery-photos')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('gallery-photos')
+        .getPublicUrl(fileName);
+
+      setBioFormImageUrl(publicUrl);
+      showToast("Biography photo uploaded! Click save to persist.");
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setUploading(null);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleSaveBiography = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading('biography-save');
+    try {
+      const updates = [
+        { key: 'bio_image_url', value: bioFormImageUrl },
+        { key: 'bio_paragraphs_json', value: JSON.stringify(bioFormParagraphs) },
+        { key: 'bio_awards_json', value: JSON.stringify(bioFormAwards) }
+      ];
+
+      for (const item of updates) {
+        const { error } = await supabase.from('settings').upsert(item, { onConflict: 'key' });
+        if (error) throw error;
+      }
+
+      setBioImageUrl(bioFormImageUrl);
+      setBioParagraphs(bioFormParagraphs);
+      setBioAwards(bioFormAwards);
+      showToast("Biography updated successfully!");
+      onRefresh();
+    } catch (err: any) {
+      console.warn("Database save failed, using local storage:", err.message);
+      localStorage.setItem('local_bio_image', bioFormImageUrl);
+      localStorage.setItem('local_bio_paragraphs', JSON.stringify(bioFormParagraphs));
+      localStorage.setItem('local_bio_awards', JSON.stringify(bioFormAwards));
+      
+      setBioImageUrl(bioFormImageUrl);
+      setBioParagraphs(bioFormParagraphs);
+      setBioAwards(bioFormAwards);
+      showToast("Biography updated locally (Database failed)!");
+      onRefresh();
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const getHeaderInfo = () => {
+    switch (activeTab) {
+      case 'homepage':
+        return {
+          title: "Homepage Settings",
+          subtitle: "Manage your hero banner and introductory features"
+        };
+      case 'biography':
+        return {
+          title: "Biography & Recognition",
+          subtitle: "Update your personal profile, biography text paragraphs, and achievements"
+        };
+      case 'courses':
+        return {
+          title: editingId ? "Edit Course" : "Courses & LMS Settings",
+          subtitle: editingId ? "Modify course content and publish changes" : "Create courses, upload PDFs, and post rotating announcements"
+        };
+      case 'calendar':
+        return {
+          title: "Calendar & Slots Availability",
+          subtitle: "Manage your weekly availability, upcoming performances, and student slots"
+        };
+      case 'organizers':
+        return {
+          title: "Organizers Corner",
+          subtitle: "Update your stage diagram setup and performance photography gallery"
+        };
+      default:
+        return {
+          title: "Admin Panel",
+          subtitle: "Manage your platform settings"
+        };
+    }
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <div className="admin-page">
       <div className="admin-sidebar">
@@ -2077,7 +2309,44 @@ function AdminPage({
           <span>Admin Panel</span>
         </div>
         <nav className="admin-nav">
-          <button onClick={() => navigate("admin")} className="admin-nav-item active" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>Dashboard</button>
+          <button 
+            onClick={() => setActiveTab('homepage')} 
+            className={`admin-nav-item ${activeTab === 'homepage' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Homepage Edit
+          </button>
+          <button 
+            onClick={() => setActiveTab('biography')} 
+            className={`admin-nav-item ${activeTab === 'biography' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Biography Edit
+          </button>
+          <button 
+            onClick={() => setActiveTab('courses')} 
+            className={`admin-nav-item ${activeTab === 'courses' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Courses & LMS
+          </button>
+          <button 
+            onClick={() => setActiveTab('calendar')} 
+            className={`admin-nav-item ${activeTab === 'calendar' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Calendar & Slots
+          </button>
+          <button 
+            onClick={() => setActiveTab('organizers')} 
+            className={`admin-nav-item ${activeTab === 'organizers' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            Organizers Corner
+          </button>
+
+          <div style={{ margin: '15px 0', borderBottom: '1px solid rgba(255,255,255,0.08)' }} />
+
           <button 
             onClick={() => navigate("FluteRoots")} 
             className="admin-nav-item" 
@@ -2098,430 +2367,744 @@ function AdminPage({
 
         <div className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1>{editingId ? "Edit Course" : "Add New Course"}</h1>
-            <p className="admin-subtitle">Fill in the details below to update your learning platform</p>
+            <h1>{headerInfo.title}</h1>
+            <p className="admin-subtitle">{headerInfo.subtitle}</p>
           </div>
         </div>
 
-        {/* Hero Image Management - RESTORED TO TOP WITH PREVIOUS STYLING */}
-        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
-          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Image Management</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
-            <div>
-              <div className="hero-preview" style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #eee' }}>
-                <img src={heroImageUrl} alt="Current Hero" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center' }}>
-                {uploading === 'hero' ? 'Uploading...' : 'Change Hero Image'}
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeroUpload} disabled={uploading === 'hero'} />
-              </label>
-            </div>
-            <div style={{ color: '#666', fontSize: '14px' }}>
-              <p style={{ marginBottom: '12px' }}><strong>Current Hero Image:</strong> This image appears on the top of your homepage.</p>
-              <ul style={{ paddingLeft: '20px' }}>
-                <li style={{ marginBottom: '8px' }}>Recommended size: 1920x1080px or larger.</li>
-                <li style={{ marginBottom: '8px' }}>The image will be centered and will cover the entire hero area.</li>
-                <li style={{ marginBottom: '8px' }}>Try to use an image with dark tones as it works best with the white typography.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Stage Setup Management */}
-        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h3 style={{ fontFamily: 'var(--font-serif)' }}>Stage Setup Diagram</h3>
-            <span style={{ fontSize: '12px', color: 'var(--gold)', background: '#fcfaf7', padding: '4px 12px', borderRadius: '20px', border: '1px solid var(--gold)' }}>
-              Tip: Press <strong>Ctrl + V</strong> to paste an image
-            </span>
-          </div>
-          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-            <div className="admin-upload-card" style={{ 
-              background: '#fcfaf7', 
-              border: '2px dashed #ddd', 
-              borderRadius: '12px', 
-              padding: '30px', 
-              textAlign: 'center'
-            }}>
-              <div style={{ 
-                width: '100%', 
-                aspectRatio: '16/9', 
-                background: '#fff', 
-                borderRadius: '8px', 
-                marginBottom: '20px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                overflow: 'hidden',
-                border: '1px solid #eee'
-              }}>
-                {stageSetupUrl ? (
-                  <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                ) : (
-                  <div style={{ color: '#bbb' }}>
-                    <p style={{ fontSize: '14px' }}>No setup diagram uploaded</p>
-                    <p style={{ fontSize: '12px', marginTop: '4px' }}>Paste (Ctrl+V) or click upload below</p>
+        {/* ==================== HOMEPAGE TAB ==================== */}
+        {activeTab === 'homepage' && (
+          <>
+            {/* Hero Image Management - RESTORED TO TOP WITH PREVIOUS STYLING */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Image Management</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
+                <div>
+                  <div className="hero-preview" style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #eee' }}>
+                    <img src={heroImageUrl} alt="Current Hero" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
-                )}
-              </div>
-              <input 
-                type="file" 
-                id="stage-setup-file" 
-                style={{ display: 'none' }} 
-                onChange={handleStageSetupUpload} 
-                accept="image/*" 
-              />
-              <label htmlFor="stage-setup-file" className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', display: 'inline-block', width: '100%' }}>
-                {uploading === 'stage-setup' ? "UPLOADING..." : (stageSetupUrl ? "REPLACE IMAGE" : "UPLOAD IMAGE")}
-              </label>
-            </div>
-          </div>
-          <p style={{ marginTop: '20px', color: '#666', fontSize: '13px', textAlign: 'center' }}>
-            This diagram will appear in the Organizers Corner and will be available for download.
-          </p>
-        </div>
-
-        {/* Course Announcements Management */}
-        <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
-          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Rotating Course Announcements</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {announcementForm.map((ann, idx) => (
-              <div key={idx} style={{ padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px solid #eee', position: 'relative' }}>
-                <button 
-                  onClick={() => setAnnouncementForm(announcementForm.filter((_, i) => i !== idx))}
-                  style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '18px' }}
-                >
-                  &times;
-                </button>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
-                  <div className="admin-field" style={{ marginBottom: 0 }}>
-                    <label>Badge Title</label>
-                    <input 
-                      type="text" 
-                      value={ann.title} 
-                      onChange={e => {
-                        const newAnns = [...announcementForm];
-                        newAnns[idx].title = e.target.value;
-                        setAnnouncementForm(newAnns);
-                      }} 
-                      placeholder="e.g. NEW COURSE" 
-                    />
-                  </div>
-                  <div className="admin-field" style={{ marginBottom: 0 }}>
-                    <label>Announcement Message</label>
-                    <textarea 
-                      rows={2} 
-                      value={ann.text} 
-                      onChange={e => {
-                        const newAnns = [...announcementForm];
-                        newAnns[idx].text = e.target.value;
-                        setAnnouncementForm(newAnns);
-                      }} 
-                      placeholder="e.g. Enrollments starting next Monday..." 
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            <button 
-              onClick={() => setAnnouncementForm([...announcementForm, { title: "", text: "" }])}
-              className="admin-btn" 
-              style={{ background: '#f0f0f0', color: '#444', width: '200px' }}
-            >
-              + ADD ANNOUNCEMENT
-            </button>
-
-            <div style={{ marginTop: '24px', textAlign: 'right', borderTop: '1px solid #eee', paddingTop: '24px' }}>
-              <button 
-                onClick={handleUpdateAnnouncements} 
-                className="admin-btn admin-btn-primary" 
-                disabled={uploading === 'announcements'}
-              >
-                {uploading === 'announcements' ? "UPDATING..." : "SAVE & PUSH TO STRIPE"}
-              </button>
-            </div>
-          </div>
-          <p style={{ marginTop: '16px', color: '#888', fontSize: '13px' }}>
-            These announcements will rotate in a continuous stripe on the Courses page.
-          </p>
-        </div>
-
-
-
-        <form className="admin-form" onSubmit={handleSave}>
-          <div className="admin-form-grid">
-            <div className="admin-form-left">
-              <div className="admin-field">
-                <label>Title *</label>
-                <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div className="admin-field">
-                <label>Description *</label>
-                <textarea rows={5} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required />
-              </div>
-              <div className="admin-field-row">
-                <div className="admin-field">
-                  <label>Level</label>
-                  <select value={form.level} onChange={e => setForm({ ...form, level: e.target.value })}>
-                    <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
-                  </select>
-                </div>
-                <div className="admin-field">
-                  <label>Duration</label>
-                  <input type="text" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} placeholder="e.g. 8 Weeks" />
-                </div>
-                <div className="admin-field">
-                  <label>Lessons</label>
-                  <input type="number" value={form.lessons || ""} onChange={e => setForm({ ...form, lessons: parseInt(e.target.value) || 0 })} />
-                </div>
-              </div>
-              <div className="admin-field">
-                <label>Price</label>
-                <input type="text" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="e.g. ₹2,999" />
-              </div>
-            </div>
-
-            <div className="admin-form-right">
-              <div className="admin-field">
-                <label>Course Thumbnail (Image)</label>
-                <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-block' }}>
-                  {uploading === 'course-thumb' ? 'Processing...' : '🖼️ Choose Image File'}
-                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleThumbnailUpload(e)} />
-                </label>
-                {form.thumbnail_url && (
-                  <div style={{ marginTop: '10px' }}>
-                    <img src={form.thumbnail_url} alt="Thumbnail preview" style={{ width: '100px', height: '60px', objectFit: 'cover', borderRadius: '4px' }} />
-                    <p style={{ fontSize: '12px', color: '#4CAF50' }}>✓ Thumbnail ready</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="admin-field">
-                <label>Course Video URL (Upload file OR Paste link directly)</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {uploading === 'course-media' ? 'Uploading...' : '📁 Upload Video'}
-                    <input type="file" accept="video/*" style={{ display: 'none' }} onChange={e => handleFileUpload(e, 'course-media')} />
+                  <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                    {uploading === 'hero' ? 'Uploading...' : 'Change Hero Image'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeroUpload} disabled={uploading === 'hero'} />
                   </label>
+                </div>
+                <div style={{ color: '#666', fontSize: '14px' }}>
+                  <p style={{ marginBottom: '12px' }}><strong>Current Hero Image:</strong> This image appears on the top of your homepage.</p>
+                  <ul style={{ paddingLeft: '20px' }}>
+                    <li style={{ marginBottom: '8px' }}>Recommended size: 1920x1080px or larger.</li>
+                    <li style={{ marginBottom: '8px' }}>The image will be centered and will cover the entire hero area.</li>
+                    <li style={{ marginBottom: '8px' }}>Try to use an image with dark tones as it works best with the white typography.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Introductory Video Management */}
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <h3>Introductory Video Management</h3>
+              </div>
+              <form className="admin-form" onSubmit={handleUpdateIntro} style={{ padding: '20px' }}>
+                <div className="admin-field">
+                  <label>YouTube Video URL (Embed link or Watch link)</label>
                   <input 
                     type="text" 
-                    placeholder="Or paste video URL here..." 
-                    value={form.video_url} 
-                    onChange={e => setForm({...form, video_url: e.target.value})}
-                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                    value={introForm.url} 
+                    onChange={e => setIntroForm({...introForm, url: e.target.value})}
+                    placeholder="https://www.youtube.com/embed/..."
                   />
                 </div>
-                {form.video_url && !form.video_url.includes('http') && <p style={{ marginTop: '8px', fontSize: '13px', color: 'orange' }}>Please enter a valid URL starting with http:// or https://</p>}
-              </div>
+                <div className="admin-field">
+                  <label>Introduction Title</label>
+                  <input 
+                    type="text" 
+                    value={introForm.title} 
+                    onChange={e => setIntroForm({...introForm, title: e.target.value})}
+                    placeholder="Enter title"
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Introduction Description</label>
+                  <textarea 
+                    rows={4} 
+                    value={introForm.description} 
+                    onChange={e => setIntroForm({...introForm, description: e.target.value})}
+                    placeholder="Enter description text"
+                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontFamily: 'inherit' }}
+                  />
+                </div>
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'intro'}>
+                  {uploading === 'intro' ? "SAVING..." : "UPDATE INTRO SECTION"}
+                </button>
+              </form>
+            </div>
+          </>
+        )}
 
-                  <div className="form-group">
+        {/* ==================== BIOGRAPHY TAB ==================== */}
+        {activeTab === 'biography' && (
+          <form onSubmit={handleSaveBiography}>
+            {/* Biography Profile Photo Card */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Biography Profile Photo</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
+                <div>
+                  <div className="bio-preview" style={{ width: '150px', height: '150px', background: '#000', borderRadius: '50%', overflow: 'hidden', margin: '0 auto 16px', border: '2px solid var(--gold)', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+                    <img src={bioFormImageUrl} alt="Bio Profile Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                    {uploading === 'bio-pic' ? 'Uploading...' : 'Change Profile Photo'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBioPhotoUpload} disabled={uploading === 'bio-pic'} />
+                  </label>
+                </div>
+                <div style={{ color: '#666', fontSize: '14px' }}>
+                  <p style={{ marginBottom: '12px' }}><strong>Profile Image:</strong> This photo represents you on your biography page.</p>
+                  <ul style={{ paddingLeft: '20px' }}>
+                    <li style={{ marginBottom: '8px' }}>Recommended: Square portrait aspect ratio.</li>
+                    <li style={{ marginBottom: '8px' }}>Will be automatically cropped into a high-quality circle display.</li>
+                    <li style={{ marginBottom: '8px' }}>Choose a crisp, well-lit performance or casual photo.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Biography Text Paragraphs */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Biography Paragraphs</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {bioFormParagraphs.map((para, idx) => (
+                  <div key={idx} style={{ position: 'relative', display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
+                    <textarea
+                      rows={3}
+                      value={para}
+                      onChange={e => {
+                        const updated = [...bioFormParagraphs];
+                        updated[idx] = e.target.value;
+                        setBioFormParagraphs(updated);
+                      }}
+                      style={{ flex: 1, padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontFamily: 'inherit', fontSize: '14px', lineHeight: '1.6' }}
+                      placeholder={`Paragraph ${idx + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBioFormParagraphs(bioFormParagraphs.filter((_, i) => i !== idx))}
+                      className="admin-btn-icon admin-btn-danger"
+                      style={{ marginTop: '10px', padding: '8px 12px', whiteSpace: 'nowrap' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setBioFormParagraphs([...bioFormParagraphs, ""])}
+                  className="admin-btn"
+                  style={{ background: '#f0f0f0', color: '#444', width: '200px' }}
+                >
+                  + Add Paragraph
+                </button>
+              </div>
+            </div>
+
+            {/* Awards and Recognitions */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Awards & Recognitions</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {bioFormAwards.map((award, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={award}
+                      onChange={e => {
+                        const updated = [...bioFormAwards];
+                        updated[idx] = e.target.value;
+                        setBioFormAwards(updated);
+                      }}
+                      style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                      placeholder={`Award Title ${idx + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBioFormAwards(bioFormAwards.filter((_, i) => i !== idx))}
+                      className="admin-btn-icon admin-btn-danger"
+                      style={{ padding: '8px 12px' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setBioFormAwards([...bioFormAwards, ""])}
+                  className="admin-btn"
+                  style={{ background: '#f0f0f0', color: '#444', width: '200px' }}
+                >
+                  + Add Award
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '24px', textAlign: 'right', borderTop: '1px solid #eee', paddingTop: '24px' }}>
+              <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'biography-save'}>
+                {uploading === 'biography-save' ? "Saving Biography..." : "Save Biography Settings"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ==================== COURSES & LMS TAB ==================== */}
+        {activeTab === 'courses' && (
+          <>
+            {/* Course Announcements Management */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Rotating Course Announcements</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {announcementForm.map((ann, idx) => (
+                  <div key={idx} style={{ padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px solid #eee', position: 'relative' }}>
+                    <button 
+                      type="button"
+                      onClick={() => setAnnouncementForm(announcementForm.filter((_, i) => i !== idx))}
+                      style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '18px' }}
+                    >
+                      &times;
+                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '20px' }}>
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>Badge Title</label>
+                        <input 
+                          type="text" 
+                          value={ann.title} 
+                          onChange={e => {
+                            const newAnns = [...announcementForm];
+                            newAnns[idx].title = e.target.value;
+                            setAnnouncementForm(newAnns);
+                          }} 
+                          placeholder="e.g. NEW COURSE" 
+                        />
+                      </div>
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>Announcement Message</label>
+                        <textarea 
+                          rows={2} 
+                          value={ann.text} 
+                          onChange={e => {
+                            const newAnns = [...announcementForm];
+                            newAnns[idx].text = e.target.value;
+                            setAnnouncementForm(newAnns);
+                          }} 
+                          placeholder="e.g. Enrollments starting next Monday..." 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                <button 
+                  type="button"
+                  onClick={() => setAnnouncementForm([...announcementForm, { title: "", text: "" }])}
+                  className="admin-btn" 
+                  style={{ background: '#f0f0f0', color: '#444', width: '200px' }}
+                >
+                  + ADD ANNOUNCEMENT
+                </button>
+
+                <div style={{ marginTop: '24px', textAlign: 'right', borderTop: '1px solid #eee', paddingTop: '24px' }}>
+                  <button 
+                    type="button"
+                    onClick={handleUpdateAnnouncements} 
+                    className="admin-btn admin-btn-primary" 
+                    disabled={uploading === 'announcements'}
+                  >
+                    {uploading === 'announcements' ? "UPDATING..." : "SAVE & PUSH TO STRIPE"}
+                  </button>
+                </div>
+              </div>
+              <p style={{ marginTop: '16px', color: '#888', fontSize: '13px' }}>
+                These announcements will rotate in a continuous stripe on the Courses page.
+              </p>
+            </div>
+
+            <form className="admin-form" onSubmit={handleSave}>
+              <div className="admin-form-grid">
+                <div className="admin-form-left">
+                  <div className="admin-field">
+                    <label>Title *</label>
+                    <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required />
+                  </div>
+                  <div className="admin-field">
+                    <label>Description *</label>
+                    <textarea rows={5} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} required />
+                  </div>
+                  <div className="admin-field-row">
+                    <div className="admin-field">
+                      <label>Level</label>
+                      <select value={form.level} onChange={e => setForm({ ...form, level: e.target.value })}>
+                        <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
+                      </select>
+                    </div>
+                    <div className="admin-field">
+                      <label>Duration</label>
+                      <input type="text" value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} placeholder="e.g. 8 Weeks" />
+                    </div>
+                    <div className="admin-field">
+                      <label>Lessons</label>
+                      <input type="number" value={form.lessons || ""} onChange={e => setForm({ ...form, lessons: parseInt(e.target.value) || 0 })} />
+                    </div>
+                  </div>
+                  <div className="admin-field">
+                    <label>Price</label>
+                    <input type="text" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="e.g. ₹2,999" />
+                  </div>
+                </div>
+
+                <div className="admin-form-right">
+                  <div className="admin-field">
+                    <label>Course Thumbnail (Image)</label>
+                    <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-block' }}>
+                      {uploading === 'course-thumb' ? 'Processing...' : '🖼️ Choose Image File'}
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleThumbnailUpload(e)} />
+                    </label>
+                    {form.thumbnail_url && (
+                      <div style={{ marginTop: '10px' }}>
+                        <img src={form.thumbnail_url} alt="Thumbnail preview" style={{ width: '100px', height: '60px', objectFit: 'cover', borderRadius: '4px' }} />
+                        <p style={{ fontSize: '12px', color: '#4CAF50' }}>✓ Thumbnail ready</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="admin-field" style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Course Video Source</label>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVideoSource('youtube');
+                          if (form.video_url && !form.video_url.includes('youtube.com') && !form.video_url.includes('youtu.be')) {
+                            setForm(prev => ({ ...prev, video_url: "" }));
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          borderRadius: '6px',
+                          border: videoSource === 'youtube' ? '2px solid var(--gold)' : '1px solid #ccc',
+                          background: videoSource === 'youtube' ? '#fcfaf7' : 'white',
+                          color: videoSource === 'youtube' ? 'var(--gold)' : '#333',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        🎥 YouTube Video Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVideoSource('mp4');
+                          if (form.video_url && (form.video_url.includes('youtube.com') || form.video_url.includes('youtu.be'))) {
+                            setForm(prev => ({ ...prev, video_url: "" }));
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          borderRadius: '6px',
+                          border: videoSource === 'mp4' ? '2px solid var(--gold)' : '1px solid #ccc',
+                          background: videoSource === 'mp4' ? '#fcfaf7' : 'white',
+                          color: videoSource === 'mp4' ? 'var(--gold)' : '#333',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        📁 MP4 Upload / Select
+                      </button>
+                    </div>
+
+                    {videoSource === 'youtube' ? (
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>YouTube Video URL</label>
+                        <input 
+                          type="text" 
+                          placeholder="Paste YouTube URL (e.g. https://www.youtube.com/watch?v=...) here..." 
+                          value={form.video_url} 
+                          onChange={e => setForm({...form, video_url: e.target.value})}
+                          style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        />
+                        {form.video_url && !form.video_url.includes('http') && (
+                          <p style={{ marginTop: '8px', fontSize: '13px', color: 'orange' }}>
+                            Please enter a valid URL starting with http:// or https://
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Upload Video File (MP4, WebM)</label>
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                              {uploading === 'course-media' ? '⏳ Uploading Video...' : '📁 Upload MP4 File'}
+                              <input 
+                                type="file" 
+                                accept="video/mp4,video/webm,video/quicktime" 
+                                style={{ display: 'none' }} 
+                                onChange={e => handleFileUpload(e, 'course-media')} 
+                              />
+                            </label>
+                            {uploading === 'course-media' && (
+                              <span style={{ fontSize: '13px', color: 'var(--gold)' }}>
+                                {uploadProgress || 'Uploading file... Please wait.'}
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Max file size recommended: 50MB (Supabase Free Tier limits)</p>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Or Select from Uploaded Videos</label>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <select
+                              value={form.video_url}
+                              onChange={e => setForm({ ...form, video_url: e.target.value })}
+                              style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc', background: 'white' }}
+                            >
+                              <option value="">-- Choose an uploaded video --</option>
+                              {videoFiles.map(vf => (
+                                <option key={vf.name} value={vf.url}>
+                                  {vf.name}
+                                </option>
+                              ))}
+                            </select>
+                            {form.video_url && videoFiles.some(vf => vf.url === form.video_url) && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const fileObj = videoFiles.find(vf => vf.url === form.video_url);
+                                  if (fileObj) {
+                                    await handleDeleteVideo(fileObj.name);
+                                    setForm(prev => ({ ...prev, video_url: "" }));
+                                  }
+                                }}
+                                style={{
+                                  padding: '10px 15px',
+                                  background: '#ff4d4d',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                Delete File
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {form.video_url && (
+                          <div style={{ wordBreak: 'break-all', fontSize: '12px', color: '#666', background: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+                            <strong>Selected URL:</strong> {form.video_url}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
                     <label>Course Announcement (Optional)</label>
                     <textarea 
                       value={form.announcement || ""} 
                       onChange={(e) => setForm({ ...form, announcement: e.target.value })}
                       placeholder="e.g. Welcome to the course! Check out the new PDF notes added today."
-                      style={{ minHeight: '80px' }}
+                      style={{ minHeight: '80px', width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
                     />
                     <p style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>This will appear in the 'Announcements' tab of the course player.</p>
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
                     <label>Course Notes (PDF)</label>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {uploading === 'course-notes' ? 'Uploading...' : '📄 Upload PDF Notes'}
-                    <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => handleNotesUpload(e)} />
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="Or paste PDF link here..." 
-                    value={form.notes_url || ""} 
-                    onChange={e => setForm({...form, notes_url: e.target.value})}
-                    style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
-                  />
-                </div>
-                {form.notes_url && <p style={{ marginTop: '8px', fontSize: '13px', color: '#4CAF50' }}>✓ PDF Notes attached: {form.notes_url.split('/').pop()?.split('_').pop()}</p>}
-              </div>
-              <div className="admin-preview">
-                {form.video_url ? (
-                  <video src={form.video_url} className="admin-preview-video" controls />
-                ) : (
-                  <div className="admin-preview-placeholder">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    <p>{uploading === 'course-media' ? 'Processing...' : 'Video Preview'}</p>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {uploading === 'course-notes' ? 'Uploading...' : '📄 Upload PDF Notes'}
+                        <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={e => handleNotesUpload(e)} />
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="Or paste PDF link here..." 
+                        value={form.notes_url || ""} 
+                        onChange={e => setForm({...form, notes_url: e.target.value})}
+                        style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
+                      />
+                    </div>
+                    {form.notes_url && <p style={{ marginTop: '8px', fontSize: '13px', color: '#4CAF50' }}>✓ PDF Notes attached: {form.notes_url.split('/').pop()?.split('_').pop()}</p>}
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
 
-          <div className="admin-form-actions">
-            {editingId && <button type="button" className="admin-btn admin-btn-ghost" onClick={resetForm}>Cancel</button>}
-            <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'course-save'}>
-              {uploading === 'course-save' ? "Saving..." : (editingId ? "Update Course" : "Add Course")}
-            </button>
-          </div>
-        </form>
-
-        <div className="admin-list-header">
-          <h2>All Courses ({courses.length})</h2>
-        </div>
-
-        <div className="admin-course-list">
-          {courses.map(course => (
-            <div key={course.id} className="admin-course-row">
-              <div className="admin-course-info">
-                <h4>{course.title}</h4>
-                <div className="admin-course-tags">
-                  <span className="admin-tag">{course.level}</span>
-                  <span className="admin-tag">{course.price}</span>
+                  <div className="admin-preview">
+                    {form.video_url ? (
+                      (() => {
+                        const ytId = getYouTubeId(form.video_url);
+                        const isYt = form.video_url.includes("youtube.com") || form.video_url.includes("youtu.be");
+                        if (ytId || isYt) {
+                          const embedSrc = ytId 
+                            ? `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&controls=1`
+                            : form.video_url;
+                          return (
+                            <iframe
+                              src={embedSrc}
+                              className="admin-preview-video"
+                              style={{ border: 'none', aspectRatio: '16/9', width: '100%' }}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          );
+                        }
+                        return <video src={form.video_url} className="admin-preview-video" controls />;
+                      })()
+                    ) : (
+                      <div className="admin-preview-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        <p>{uploading === 'course-media' ? 'Processing...' : 'Video Preview'}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="admin-course-actions">
-                <button className="admin-btn-icon" onClick={() => handleEdit(course)}>Edit</button>
-                <button className="admin-btn-icon admin-btn-danger" onClick={() => handleDeleteCourse(course.id)}>Delete</button>
-              </div>
-            </div>
-          ))}
-        </div>
 
-
-        {/* Intro Section Management */}
-        <div className="admin-card" style={{ marginTop: '40px' }}>
-          <div className="admin-card-header">
-            <h3>Introductory Video Management</h3>
-          </div>
-          <form className="admin-form" onSubmit={handleUpdateIntro} style={{ padding: '20px' }}>
-            <div className="admin-field">
-              <label>YouTube Video URL (Embed link or Watch link)</label>
-              <input 
-                type="text" 
-                value={introForm.url} 
-                onChange={e => setIntroForm({...introForm, url: e.target.value})}
-                placeholder="https://www.youtube.com/embed/..."
-              />
-            </div>
-            <div className="admin-field">
-              <label>Introduction Title</label>
-              <input 
-                type="text" 
-                value={introForm.title} 
-                onChange={e => setIntroForm({...introForm, title: e.target.value})}
-                placeholder="Enter title"
-              />
-            </div>
-            <div className="admin-field">
-              <label>Introduction Description</label>
-              <textarea 
-                rows={4} 
-                value={introForm.description} 
-                onChange={e => setIntroForm({...introForm, description: e.target.value})}
-                placeholder="Enter description text"
-                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontFamily: 'inherit' }}
-              />
-            </div>
-            <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'intro'}>
-              {uploading === 'intro' ? "SAVING..." : "UPDATE INTRO SECTION"}
-            </button>
-          </form>
-        </div>
-
-        {/* Calendar & Availability Management */}
-        <div id="calendar-management-card" className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
-          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Calendar & Availability Management</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
-            <form onSubmit={handleAddEvent}>
-              <div className="admin-field">
-                <label>{eventForm.type === 'available' ? 'Slot Details / Availability' : 'Event Title'}</label>
-                <input 
-                  type="text" 
-                  value={eventForm.title} 
-                  onChange={e => setEventForm({...eventForm, title: e.target.value})} 
-                  placeholder={eventForm.type === 'available' ? 'e.g. 12pm-1pm Available' : 'e.g. Concert in Mumbai'} 
-                  required 
-                />
-              </div>
-              <div className="admin-field">
-                <label>Date</label>
-                <input type="date" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
-              </div>
-              <div className="admin-field">
-                <label>Type</label>
-                <select value={eventForm.type} onChange={e => setEventForm({...eventForm, type: e.target.value as any})}>
-                  <option value="available">Specific Slots (Available)</option>
-                  <option value="performance">Performance (Booked)</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" className="admin-btn admin-btn-primary" style={{ flex: 1 }} disabled={uploading === 'event-add'}>
-                  {uploading === 'event-add' ? 'Saving...' : (editingEventId ? 'Update Event/Slot' : 'Add to Calendar')}
+              <div className="admin-form-actions">
+                {editingId && <button type="button" className="admin-btn admin-btn-ghost" onClick={resetForm}>Cancel</button>}
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={uploading === 'course-save'}>
+                  {uploading === 'course-save' ? "Saving..." : (editingId ? "Update Course" : "Add Course")}
                 </button>
-                {editingEventId && (
-                  <button 
-                    type="button" 
-                    className="admin-btn admin-btn-ghost" 
-                    onClick={() => {
-                      setEditingEventId(null);
-                      setEventForm({ title: "", date: new Date().toISOString().split('T')[0], type: 'available' });
-                    }}
-                  >
-                    Cancel
-                  </button>
-                )}
               </div>
             </form>
-            
-            <div className="admin-event-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              <h4 style={{ marginBottom: '16px' }}>Existing Events/Slots</h4>
-              {calendarEvents.length === 0 ? <p style={{ color: '#888' }}>No events scheduled.</p> : (
-                calendarEvents.map(ev => (
-                  <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #eee', background: editingEventId === ev.id ? '#fff9f2' : 'transparent' }}>
-                    <div style={{ flex: 1 }}>
-                      <strong>{ev.date}</strong> - {ev.title} <span style={{ fontSize: '12px', color: '#888', marginLeft: '5px' }}>({ev.type})</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleEditEvent(ev)} style={{ color: 'var(--gold)', border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Edit</button>
-                      <button onClick={() => handleDeleteEvent(ev.id)} style={{ color: '#e74c3c', border: 'none', background: 'none', cursor: 'pointer', fontSize: '13px' }}>Delete</button>
+
+            <div className="admin-list-header" style={{ marginTop: '40px' }}>
+              <h2>All Courses ({courses.length})</h2>
+            </div>
+
+            <div className="admin-course-list">
+              {courses.map(course => (
+                <div key={course.id} className="admin-course-row">
+                  <div className="admin-course-info">
+                    <h4>{course.title}</h4>
+                    <div className="admin-course-tags">
+                      <span className="admin-tag">{course.level}</span>
+                      <span className="admin-tag">{course.price}</span>
                     </div>
                   </div>
-                ))
-              )}
+                  <div className="admin-course-actions">
+                    <button className="admin-btn-icon" onClick={() => handleEdit(course)}>Edit</button>
+                    <button className="admin-btn-icon admin-btn-danger" onClick={() => handleDeleteCourse(course.id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
-
-
-        {/* Gallery Management */}
-        <div className="admin-card" style={{ marginTop: '40px', background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
-          <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Gallery Management (Organizers Corner)</h3>
-          <div style={{ marginBottom: '32px', padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px dashed var(--gold)' }}>
-            <p style={{ marginBottom: '16px', fontWeight: '600' }}>Add New Performance Photo <span style={{ fontWeight: '400', fontSize: '12px', color: '#888', marginLeft: '8px' }}>(You can select multiple photos at once)</span></p>
-            <input 
-              type="file" 
-              accept="image/*" 
-              multiple
-              onChange={(e) => handleFileUpload(e, 'gallery-photos')} 
-              disabled={uploading === 'gallery'}
-            />
-            {uploading === 'gallery' && <p style={{ color: 'var(--gold)', marginTop: '10px' }}>UPLOADING... {uploadProgress}</p>}
-          </div>
-
-          <div className="admin-gallery-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-            {galleryItems.map(item => (
-              <div key={item.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee' }}>
-                <img src={item.image_url} alt="Gallery Item" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
-                <button 
-                  onClick={() => handleDeleteGallery(item.id)}
-                  style={{ position: 'absolute', top: '5px', right: '5px', background: 'rgba(231, 76, 60, 0.9)', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}
-                >
-                  DELETE
-                </button>
+        {/* ==================== CALENDAR TAB ==================== */}
+        {activeTab === 'calendar' && (
+          <div id="calendar-management-card" className="admin-card" style={{ background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
+            <h3 style={{ marginBottom: '8px', fontFamily: 'var(--font-serif)' }}>Interactive Weekly Timetable Grid</h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px' }}>
+              Edit cells inline like a spreadsheet to configure your regular weekly availability. Once done, click the <strong>Save Weekly Schedule</strong> button below.
+            </p>
+            
+            <form onSubmit={handleSaveWeeklySchedule} style={{ marginBottom: '48px' }}>
+              <div className="weekly-schedule-container" style={{ margin: '0 0 24px 0' }}>
+                <table className="weekly-schedule-table">
+                  <thead>
+                    <tr>
+                      <th>TIMING</th>
+                      <th>MON</th>
+                      <th>TUE</th>
+                      <th>WED</th>
+                      <th>THU</th>
+                      <th>FRI</th>
+                      <th>SAT</th>
+                      <th>SUN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {["5-6 AM", "6-7 AM", "7-8 AM", "8-9 AM", "2-3 PM", "5-6 PM", "6-7 PM", "7-8 PM", "8-9 PM"].map(slot => {
+                      const row = editedSchedule[slot] || {};
+                      const handleCellChange = (day: string, val: string) => {
+                        setEditedSchedule(prev => ({
+                          ...prev,
+                          [slot]: {
+                            ...(prev[slot] || {}),
+                            [day]: val
+                          }
+                        }));
+                      };
+                      return (
+                        <tr key={slot}>
+                          <td className="timing-col">{slot}</td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.MON || ""} 
+                              onChange={e => handleCellChange("MON", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.TUE || ""} 
+                              onChange={e => handleCellChange("TUE", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.WED || ""} 
+                              onChange={e => handleCellChange("WED", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.THU || ""} 
+                              onChange={e => handleCellChange("THU", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.FRI || ""} 
+                              onChange={e => handleCellChange("FRI", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.SAT || ""} 
+                              onChange={e => handleCellChange("SAT", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text" 
+                              value={row.SUN || ""} 
+                              onChange={e => handleCellChange("SUN", e.target.value)} 
+                              placeholder="-"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ))}
+              <button 
+                type="submit" 
+                className="admin-btn admin-btn-primary" 
+                disabled={uploading === 'weekly-schedule-save'}
+                style={{ padding: '12px 32px' }}
+              >
+                {uploading === 'weekly-schedule-save' ? 'Saving weekly timetable...' : 'Save Weekly Schedule'}
+              </button>
+            </form>
+
           </div>
-        </div>
+        )}
+
+        {/* ==================== ORGANIZERS CORNER TAB ==================== */}
+        {activeTab === 'organizers' && (
+          <>
+            {/* Stage Setup Management */}
+            <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-serif)' }}>Stage Setup Diagram</h3>
+                <span style={{ fontSize: '12px', color: 'var(--gold)', background: '#fcfaf7', padding: '4px 12px', borderRadius: '20px', border: '1px solid var(--gold)' }}>
+                  Tip: Press <strong>Ctrl + V</strong> to paste an image
+                </span>
+              </div>
+              <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+                <div className="admin-upload-card" style={{ 
+                  background: '#fcfaf7', 
+                  border: '2px dashed #ddd', 
+                  borderRadius: '12px', 
+                  padding: '30px', 
+                  textAlign: 'center'
+                }}>
+                  <div style={{ 
+                    width: '100%', 
+                    aspectRatio: '16/9', 
+                    background: '#fff', 
+                    borderRadius: '8px', 
+                    marginBottom: '20px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    border: '1px solid #eee'
+                  }}>
+                    {stageSetupUrl ? (
+                      <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <div style={{ color: '#bbb' }}>
+                        <p style={{ fontSize: '14px' }}>No setup diagram uploaded</p>
+                        <p style={{ fontSize: '12px', marginTop: '4px' }}>Paste (Ctrl+V) or click upload below</p>
+                      </div>
+                    )}
+                  </div>
+                  <input 
+                    type="file" 
+                    id="stage-setup-file" 
+                    style={{ display: 'none' }} 
+                    onChange={handleStageSetupUpload} 
+                    accept="image/*" 
+                  />
+                  <label htmlFor="stage-setup-file" className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', display: 'inline-block', width: '100%' }}>
+                    {uploading === 'stage-setup' ? "UPLOADING..." : (stageSetupUrl ? "REPLACE IMAGE" : "UPLOAD IMAGE")}
+                  </label>
+                </div>
+              </div>
+              <p style={{ marginTop: '20px', color: '#666', fontSize: '13px', textAlign: 'center' }}>
+                This diagram will appear in the Organizers Corner and will be available for download.
+              </p>
+            </div>
+
+            {/* Gallery Management */}
+            <div className="admin-card" style={{ background: 'white', padding: '32px', borderRadius: '8px', border: '1px solid #eee' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Gallery Management (Organizers Corner)</h3>
+              <div style={{ marginBottom: '32px', padding: '20px', background: '#fcfaf7', borderRadius: '8px', border: '1px dashed var(--gold)' }}>
+                <p style={{ marginBottom: '16px', fontWeight: '600' }}>Add New Performance Photo <span style={{ fontWeight: '400', fontSize: '12px', color: '#888', marginLeft: '8px' }}>(You can select multiple photos at once)</span></p>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple
+                  onChange={(e) => handleFileUpload(e, 'gallery-photos')} 
+                  disabled={uploading === 'gallery'}
+                />
+                {uploading === 'gallery' && <p style={{ color: 'var(--gold)', marginTop: '10px' }}>UPLOADING... {uploadProgress}</p>}
+              </div>
+
+              <div className="admin-gallery-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+                {galleryItems.map(item => (
+                  <div key={item.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid #eee' }}>
+                    <img src={item.image_url} alt="Gallery Item" style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+                    <button 
+                      type="button"
+                      onClick={() => handleDeleteGallery(item.id)}
+                      style={{ position: 'absolute', top: '5px', right: '5px', background: 'rgba(231, 76, 60, 0.9)', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}
+                    >
+                      DELETE
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
       </div>
     </div>
   );
