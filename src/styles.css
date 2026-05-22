@@ -227,7 +227,7 @@ main.has-header {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: right center;
+  object-position: right 20%;
   transform: translateX(15%);
   opacity: 0.8;
 }
