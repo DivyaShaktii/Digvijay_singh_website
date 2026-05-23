@@ -89,7 +89,7 @@ const artistProfile = {
 };
 
 const images = {
-  hero: "/images/digvijay-hero-white.jpeg",
+  hero: "/digvijay_hero_final.png",
   bio: "/images/digvijay-performance-blue.png",
   gallery: [
     "/images/digvijay-casual-flute.png",
@@ -353,20 +353,26 @@ function App() {
   return (
     <div className="app-container">
       {!onAdminPage && (
-        <header className={`site-header ${scrolled ? "scrolled" : ""} ${!scrolled && pageIsDark ? "dark-mode" : ""}`}>
+        <header className={`site-header ${scrolled ? "scrolled" : ""}`}>
           <div className="nav-container">
-            <div className="site-logo" onClick={() => navigate("home")} style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center' }}>
-              <span className="logo-text serif-title" style={{ fontSize: '22px', color: scrolled ? '#000' : (pageIsDark ? 'var(--gold)' : '#000'), transition: 'color 0.3s' }}>Flute Roots</span>
+            <div className="brand-logo" onClick={() => navigate("home")} style={{ cursor: 'pointer' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'var(--bg-dark)' }}>
+                <path d="M2 22C2 22 6.5 20.5 11 16C15.5 11.5 16.5 6.5 16.5 6.5C16.5 6.5 11.5 7.5 7 12C2.5 16.5 2 22 2 22Z" fill="currentColor" />
+                <path d="M12 13C12 13 15 12.5 18 9.5C21 6.5 21.5 2.5 21.5 2.5C21.5 2.5 17.5 3 14.5 6C11.5 9 11 12 11 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M7 17C7 17 8.5 16.5 10 15C11.5 13.5 12 11.5 12 11.5C12 11.5 10 12 8.5 13.5C7 15 6.5 17 6.5 17Z" fill="currentColor" opacity="0.5" />
+              </svg>
+              <span className="logo-text" style={{ fontSize: '22px', transition: 'color 0.3s' }}>Flute Roots</span>
             </div>
             <nav className="site-nav">
-              <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className="nav-link">Home</a>
-              <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className="nav-link">Courses</a>
-              <a href="/organizersCorner" onClick={(e) => { e.preventDefault(); navigate("organizersCorner"); }} className="nav-link">Organizers Corner</a>
-              <a href="/biography" onClick={(e) => { e.preventDefault(); navigate("biography"); }} className="nav-link">Biography</a>
-              <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className="nav-link">Contact</a>
+              <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className={`nav-link ${route === "home" ? "active" : ""}`}>Home</a>
+              <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className={`nav-link ${route === "FluteRoots" ? "active" : ""}`}>Courses</a>
+              <a href="/organizersCorner" onClick={(e) => { e.preventDefault(); navigate("organizersCorner"); }} className={`nav-link ${route === "organizersCorner" ? "active" : ""}`}>Organizers Corner</a>
+              <a href="/biography" onClick={(e) => { e.preventDefault(); navigate("biography"); }} className={`nav-link ${route === "biography" ? "active" : ""}`}>Biography</a>
+
+              <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className={`nav-link ${route === "contact" ? "active" : ""}`}>Contact</a>
             </nav>
             <div className="auth-nav">
-              {isUserAdmin && <a href="/admin" onClick={(e) => { e.preventDefault(); navigate("admin"); }} className="nav-link admin-link">Dashboard</a>}
+              {isUserAdmin && <a href="/admin" onClick={(e) => { e.preventDefault(); navigate("admin"); }} className="dashboard-pill-btn">Dashboard</a>}
               {user ? (
                 <button onClick={() => supabase.auth.signOut()} className="nav-link signout-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Sign Out</button>
               ) : (
@@ -377,7 +383,7 @@ function App() {
         </header>
       )}
 
-      <main className={!onAdminPage ? "has-header" : ""}>
+      <main className={!onAdminPage ? (route === "home" ? "has-header home-main" : "has-header") : ""}>
         {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage bioImageUrl={bioImageUrl} bioParagraphs={bioParagraphs} bioAwards={bioAwards} />}
         {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} weeklySchedule={weeklySchedule} />}
@@ -419,9 +425,49 @@ function App() {
 function Footer() {
   return (
     <footer className="site-footer">
+      {/* Golden wave top edge */}
+      <div className="footer-wave-top">
+        <svg viewBox="0 0 1200 80" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+          <path d="M0,60 C150,20 350,70 500,40 C650,10 800,50 1000,30 C1100,20 1150,35 1200,25 L1200,80 L0,80 Z" fill="#233226" />
+          <path d="M0,55 C200,30 400,65 600,35 C800,5 1000,45 1200,20" stroke="#eedcc6" strokeWidth="1.5" opacity="0.4" fill="none" />
+          <path d="M0,65 C250,40 450,75 650,45 C850,15 1050,55 1200,30" stroke="#eedcc6" strokeWidth="1" opacity="0.25" fill="none" />
+        </svg>
+      </div>
+      {/* Nature illustration background */}
+      <div className="footer-nature-bg">
+        <svg viewBox="0 0 1200 300" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMax meet">
+          {/* Bamboo stalks - taller and more visible */}
+          <line x1="1000" y1="300" x2="1000" y2="10" stroke="#3a5a3e" strokeWidth="4" opacity="0.35" />
+          <line x1="1000" y1="80" x2="1000" y2="78" stroke="#3a5a3e" strokeWidth="8" opacity="0.2" />
+          <line x1="1000" y1="160" x2="1000" y2="158" stroke="#3a5a3e" strokeWidth="8" opacity="0.2" />
+          
+          <line x1="1040" y1="300" x2="1040" y2="30" stroke="#3a5a3e" strokeWidth="3.5" opacity="0.3" />
+          <line x1="1040" y1="100" x2="1040" y2="98" stroke="#3a5a3e" strokeWidth="7" opacity="0.18" />
+          <line x1="1040" y1="200" x2="1040" y2="198" stroke="#3a5a3e" strokeWidth="7" opacity="0.18" />
+          
+          <line x1="1080" y1="300" x2="1080" y2="50" stroke="#3a5a3e" strokeWidth="3" opacity="0.25" />
+          <line x1="1080" y1="120" x2="1080" y2="118" stroke="#3a5a3e" strokeWidth="6" opacity="0.15" />
+          
+          <line x1="1120" y1="300" x2="1120" y2="70" stroke="#3a5a3e" strokeWidth="2.5" opacity="0.2" />
+          <line x1="1150" y1="300" x2="1150" y2="90" stroke="#3a5a3e" strokeWidth="2" opacity="0.15" />
+          
+          {/* Bamboo leaves - more prominent */}
+          <path d="M1000,50 Q1025,25 1040,38 Q1020,48 1000,50Z" fill="#4a6a4e" opacity="0.2" />
+          <path d="M1000,50 Q975,28 962,40 Q980,50 1000,50Z" fill="#4a6a4e" opacity="0.15" />
+          <path d="M1040,70 Q1065,48 1078,60 Q1058,72 1040,70Z" fill="#4a6a4e" opacity="0.18" />
+          <path d="M1040,70 Q1015,50 1005,62 Q1025,72 1040,70Z" fill="#4a6a4e" opacity="0.12" />
+          <path d="M1000,130 Q1028,108 1042,120 Q1022,133 1000,130Z" fill="#4a6a4e" opacity="0.15" />
+          <path d="M1080,90 Q1105,68 1118,80 Q1098,95 1080,90Z" fill="#4a6a4e" opacity="0.15" />
+          <path d="M1080,90 Q1058,70 1048,82 Q1068,92 1080,90Z" fill="#4a6a4e" opacity="0.12" />
+          
+          {/* Rolling green hills at bottom */}
+          <path d="M0,280 C200,240 400,260 600,245 C800,230 950,200 1200,215 L1200,300 L0,300 Z" fill="#2a4230" opacity="0.25" />
+          <path d="M0,290 C300,260 500,275 700,260 C900,245 1100,220 1200,240 L1200,300 L0,300 Z" fill="#2a4230" opacity="0.15" />
+        </svg>
+      </div>
       <div className="footer-content">
-        <div className="footer-logo serif-title" style={{ fontSize: '20px', color: 'var(--gold)', marginBottom: '16px' }}>Flute Roots</div>
-        <p className="text-serif text-italic">Stay Connected</p>
+        <h3 className="footer-brand">Flute Roots</h3>
+        <p className="footer-tagline">Stay Connected</p>
         <div className="social-icons">
           <a href="https://www.youtube.com/@digvijaysinhchauhan" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="YouTube">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
@@ -431,6 +477,9 @@ function Footer() {
           </a>
           <a href="https://facebook.com/DigvijayFlute" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="Facebook">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+          </a>
+          <a href="https://open.spotify.com/artist/7z5GkC7y3gCigb7D72tS8U" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="Spotify">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.563.387-.857.207-2.35-1.438-5.305-1.764-8.785-.97-.337.078-.674-.137-.752-.475-.078-.337.137-.674.475-.752 3.81-.87 7.076-.496 9.712 1.12.293.18.385.563.207.87zM17.91 13.6c-.228.368-.712.49-1.08.262-2.69-1.654-6.79-2.13-9.97-1.165-.413.125-.85-.107-.975-.52-.125-.413.107-.85.52-.975 3.637-1.103 8.142-.566 11.22 1.328.366.226.488.71.26 1.08zm.12-3.123c-3.228-1.917-8.564-2.093-11.674-1.15-.494.15-1.018-.128-1.168-.622-.15-.494.128-1.018.622-1.168 3.58-1.087 9.477-.887 13.184 1.313.444.263.59.837.327 1.28-.263.444-.837.59-1.28.327z"/></svg>
           </a>
         </div>
       </div>
@@ -452,77 +501,224 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
   return (
     <>
       <section className="hero">
-        <div className="hero-bg" style={{ backgroundColor: '#000' }}>
-          <img 
-            src={heroImageUrl || images.hero} 
-            alt={artistProfile.name} 
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = images.hero;
-            }}
-          />
+        {/* Background Decorative elements */}
+        <div className="hero-decorations">
+          {/* Curved fine golden lines at bottom */}
+          <div className="hero-wave">
+            <svg viewBox="0 0 1200 220" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+              <path d="M0,180 C200,100 400,200 600,140 C800,80 1000,160 1200,120" stroke="#eedcc6" strokeWidth="1.5" opacity="0.45" fill="none" />
+              <path d="M0,200 C250,120 450,220 650,160 C850,100 1050,180 1200,140" stroke="#eedcc6" strokeWidth="1.5" opacity="0.3" fill="none" />
+              <path d="M0,215 C300,140 500,240 700,180 C900,120 1100,200 1200,160" stroke="#eedcc6" strokeWidth="1" opacity="0.15" fill="none" />
+            </svg>
+          </div>
+          
+          {/* Bamboo stalks and leaves on the right edge */}
+          <div className="hero-bamboo">
+            <svg viewBox="0 0 200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Main bamboo stalk 1 */}
+              <line x1="120" y1="700" x2="120" y2="30" stroke="#384c3b" strokeWidth="4" opacity="0.18" />
+              <line x1="120" y1="150" x2="120" y2="148" stroke="#384c3b" strokeWidth="8" opacity="0.12" />
+              <line x1="120" y1="300" x2="120" y2="298" stroke="#384c3b" strokeWidth="8" opacity="0.12" />
+              <line x1="120" y1="450" x2="120" y2="448" stroke="#384c3b" strokeWidth="8" opacity="0.12" />
+              
+              {/* Bamboo stalk 2 */}
+              <line x1="150" y1="700" x2="150" y2="80" stroke="#384c3b" strokeWidth="3" opacity="0.14" />
+              <line x1="150" y1="200" x2="150" y2="198" stroke="#384c3b" strokeWidth="6" opacity="0.10" />
+              <line x1="150" y1="400" x2="150" y2="398" stroke="#384c3b" strokeWidth="6" opacity="0.10" />
+              
+              {/* Bamboo stalk 3 (thinner, further right) */}
+              <line x1="175" y1="700" x2="175" y2="120" stroke="#384c3b" strokeWidth="2" opacity="0.10" />
+              
+              {/* Leaves on stalk 1 */}
+              <path d="M120,100 C135,75 155,70 165,80" stroke="#384c3b" strokeWidth="1.5" opacity="0.15" fill="none" />
+              <path d="M120,100 C105,78 85,75 78,85" stroke="#384c3b" strokeWidth="1.5" opacity="0.12" fill="none" />
+              <path d="M120,250 C138,230 158,228 168,238" stroke="#384c3b" strokeWidth="1.5" opacity="0.12" fill="none" />
+              <path d="M120,250 C102,232 82,230 75,240" stroke="#384c3b" strokeWidth="1.2" opacity="0.10" fill="none" />
+              
+              {/* Leaves on stalk 2 */}
+              <path d="M150,160 C165,140 180,138 188,148" stroke="#384c3b" strokeWidth="1.2" opacity="0.12" fill="none" />
+              <path d="M150,160 C135,142 118,140 112,150" stroke="#384c3b" strokeWidth="1.2" opacity="0.10" fill="none" />
+              <path d="M150,350 C168,330 185,328 192,340" stroke="#384c3b" strokeWidth="1.2" opacity="0.10" fill="none" />
+              
+              {/* Broader leaf shapes (filled) */}
+              <path d="M120,80 Q145,55 160,65 Q145,78 120,80Z" fill="#384c3b" opacity="0.08" />
+              <path d="M150,130 Q175,108 188,118 Q172,132 150,130Z" fill="#384c3b" opacity="0.06" />
+              <path d="M120,220 Q90,195 80,208 Q95,222 120,220Z" fill="#384c3b" opacity="0.06" />
+              <path d="M150,300 Q178,278 190,290 Q175,305 150,300Z" fill="#384c3b" opacity="0.05" />
+            </svg>
+          </div>
+          
+          {/* Subtle floating leaves */}
+          <div className="hero-leaf leaf-1">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C12 2 13.5 6 15 8C16.5 10 18.5 11 18.5 11C18.5 11 14.5 10.5 13 9C11.5 7.5 12 2 12 2Z" fill="#384c3b" opacity="0.12" />
+            </svg>
+          </div>
+          <div className="hero-leaf leaf-2">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 22C12 22 10.5 18 9 16C7.5 14 5.5 13 5.5 13C5.5 13 9.5 13.5 11 15C12.5 16.5 12 22 12 22Z" fill="#384c3b" opacity="0.08" />
+            </svg>
+          </div>
+          <div className="hero-leaf leaf-3">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C12 2 13.5 6 15 8C16.5 10 18.5 11 18.5 11C18.5 11 14.5 10.5 13 9C11.5 7.5 12 2 12 2Z" fill="#384c3b" opacity="0.07" />
+            </svg>
+          </div>
         </div>
-        <div className="hero-content hero-top-left">
-          <h1 className="hero-title serif-title">
-            {artistProfile.name.split(" ").map((word, i) => (
-              <React.Fragment key={i}>
-                {word}
-                {i < artistProfile.name.split(" ").length - 1 && <br />}
-              </React.Fragment>
-            ))}
-          </h1>
+
+        <div className="container">
+          <div className="hero-container">
+            <div className="hero-editorial">
+              <span className="hero-eyebrow">FLUTE ARTIST</span>
+              <div className="hero-name-container">
+                <span className="hero-name-serif">Digvijaysinh</span>
+                <span className="hero-name-cursive">Chauhan</span>
+              </div>
+              <div className="hero-divider-olive"></div>
+              <p className="hero-desc">
+                Rooted in tradition.<br />
+                Inspired by pure expression.
+              </p>
+              <div className="hero-actions">
+                <button onClick={() => navigate("FluteRoots")} className="btn-pill btn-primary-green">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }}>
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Listen Now
+                </button>
+                <button onClick={() => navigate("FluteRoots")} className="btn-pill btn-secondary-outline">Explore Courses</button>
+              </div>
+            </div>
+            <div className="hero-media">
+              <div className="portrait-spotlight"></div>
+              <div className="portrait-wrapper">
+                <img 
+                  src={heroImageUrl || images.hero} 
+                  alt={artistProfile.name} 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = images.hero;
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Absolute screen-aligned scroll down cue matching the mockup */}
+        <div className="hero-scroll-indicator">
+          <div className="scroll-circle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
         </div>
       </section>
 
       <section className="quote-section">
         <div className="quote-container">
-          <span className="quote-marks top">“</span>
-          <p className="quote-text text-serif text-italic">
+          {/* Large decorative opening quote marks */}
+          <div className="quote-mark-large">“</div>
+          
+          {/* Left side leaf decoration */}
+          <div className="quote-leaf-left">
+            <svg viewBox="0 0 120 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0,12 C20,4 40,8 50,12 C60,16 80,12 90,12" stroke="#bda282" strokeWidth="1" opacity="0.5" fill="none" />
+              <path d="M85,8 C90,4 98,6 100,12 C102,18 96,20 92,16 C88,12 90,6 95,8" fill="#bda282" opacity="0.4" />
+              <path d="M95,8 C100,4 108,6 110,12 C112,18 106,20 102,16 C98,12 100,6 105,8" fill="#bda282" opacity="0.3" />
+            </svg>
+          </div>
+          
+          <p className="quote-text">
             Music is not just sound, it is the silence between the notes that speaks to the soul.
             The Bansuri is the breath of the divine, a bridge between the physical and the spiritual.
           </p>
+          
+          {/* Right side leaf decoration */}
+          <div className="quote-leaf-right">
+            <svg viewBox="0 0 120 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M120,12 C100,4 80,8 70,12 C60,16 40,12 30,12" stroke="#bda282" strokeWidth="1" opacity="0.5" fill="none" />
+              <path d="M35,8 C30,4 22,6 20,12 C18,18 24,20 28,16 C32,12 30,6 25,8" fill="#bda282" opacity="0.4" />
+              <path d="M25,8 C20,4 12,6 10,12 C8,18 14,20 18,16 C22,12 20,6 15,8" fill="#bda282" opacity="0.3" />
+            </svg>
+          </div>
+          
           <p className="quote-author">Classical Music Review, India</p>
-          <span className="quote-marks bottom">“</span>
         </div>
       </section>
 
       <section className="split-section">
         <div className="split-image">
           <img src={images.bio} alt="Performance" />
+          {/* Floating quote overlay on the image */}
+          <div className="split-image-quote">
+            <span className="split-image-quote-mark">“</span>
+            <p className="split-image-quote-text">Every breath<br/>becomes<br/>a note.</p>
+          </div>
         </div>
         <div className="split-content">
-          <span className="eyebrow" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px' }}>Biography</span>
-          <h2 className="split-title serif-title" style={{ fontSize: '42px', margin: '16px 0 24px' }}>Supreme Interpreter Of The Classical Flute</h2>
+          <span className="eyebrow" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '13px', fontWeight: 700 }}>Biography</span>
+          <h2 className="split-title">Supreme Interpreter of the Classical Flute</h2>
+          {/* Leaf divider under title */}
+          <div className="leaf-divider-container" style={{ margin: '20px 0 28px 0', maxWidth: '120px', justifyContent: 'flex-start' }}>
+            <svg className="leaf-icon-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C12 2 13.5 6 15 8C16.5 10 18.5 11 18.5 11C18.5 11 14.5 10.5 13 9C11.5 7.5 12 2 12 2Z" fill="currentColor" />
+              <path d="M12 22C12 22 10.5 18 9 16C7.5 14 5.5 13 5.5 13C5.5 13 9.5 13.5 11 15C12.5 16.5 12 22 12 22Z" fill="currentColor" />
+            </svg>
+          </div>
           <p className="split-text">
-            Trained in the traditional Guru-Shishya Parampara, Digvijaysinh Chauhan brings a rare depth of emotion and technical mastery to the bansuri. His performances are a journey through the meditative landscapes of Indian Ragas.
+            Trained in the traditional Guru–Shishya Parampara, Digvijaysinh Chauhan brings a rare depth of emotion and technical mastery to the bansuri. His performances are a journey through the meditative landscapes of Indian Ragas.
           </p>
-          <button onClick={() => navigate("biography")} className="text-gold text-serif text-italic" style={{ background: 'none', border: 'none', padding: 0, marginTop: '32px', display: 'inline-block', cursor: 'pointer' }}>Read more about the artist →</button>
+          <button onClick={() => navigate("biography")} className="split-cta-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+              <path d="M12 2C12 2 13.5 6 15 8C16.5 10 18.5 11 18.5 11C18.5 11 14.5 10.5 13 9C11.5 7.5 12 2 12 2Z" fill="currentColor" />
+              <path d="M12 22C12 22 10.5 18 9 16C7.5 14 5.5 13 5.5 13C5.5 13 9.5 13.5 11 15C12.5 16.5 12 22 12 22Z" fill="currentColor" />
+            </svg>
+            Read more about the artist
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '12px' }}>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
         </div>
       </section>
 
       {/* Video Introduction Section */}
-      <section className="intro-section" style={{ padding: '80px 0', backgroundColor: '#fff' }}>
+      <section className="intro-section" style={{ padding: '48px 0', backgroundColor: 'var(--bg-light)' }}>
         <div className="container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '60px', alignItems: 'center' }}>
-          <div className="intro-video" style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', aspectRatio: '16/9', background: '#000' }}>
-                {videoId ? (
-                  <iframe 
-                    src={embedUrl}
-                    title={title}
-                    style={{ width: '100%', height: '100%', border: 'none' }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowFullScreen
-                  ></iframe>
-                ) : (
-                  <video 
-                    src={url} 
-                    controls 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                )}
-          </div>
           <div className="intro-content">
-
-            <h2 className="serif-title" style={{ fontSize: '42px', marginBottom: '24px' }}>{title}</h2>
-            <p style={{ color: '#666', lineHeight: '1.8', fontSize: '18px' }}>{description}</p>
+            <span className="eyebrow" style={{ color: 'var(--gold)', letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '16px' }}>Introductory Video</span>
+            <h2 className="split-title" style={{ marginBottom: '16px' }}>Introductory Video</h2>
+            <div className="hero-divider-olive" style={{ marginBottom: '24px' }}></div>
+            <p style={{ color: 'var(--text-body)', lineHeight: '1.8', fontSize: '16px', marginBottom: '36px' }}>Welcome to the world of Bansuri. Here we explore the deep meditative qualities of the Indian flute.</p>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="btn-pill btn-secondary-outline" style={{ gap: '10px', width: 'fit-content' }}>
+              Watch on
+              <svg width="20" height="14" viewBox="0 0 24 17" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginLeft: '6px', marginRight: '4px' }}>
+                <rect width="24" height="17" rx="4" fill="#FF0000"/>
+                <path d="M10 4.5V12.5L16 8.5L10 4.5Z" fill="white"/>
+              </svg>
+              YouTube
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '8px' }}>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </a>
+          </div>
+          <div className="intro-video" style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', aspectRatio: '16/9', background: '#000' }}>
+            {videoId ? (
+              <iframe 
+                src={embedUrl}
+                title={title}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen
+              ></iframe>
+            ) : (
+              <video 
+                src={url} 
+                controls 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            )}
           </div>
         </div>
       </section>
@@ -562,7 +758,9 @@ function BiographyPage({
 
       <section className="bio-section">
         <div className="bio-grid">
-          <img src={currentBioImage} alt={artistProfile.name} className="bio-image" />
+          <div className="bio-image-wrapper">
+            <img src={currentBioImage} alt={artistProfile.name} className="bio-image" />
+          </div>
           <div className="bio-content">
             <h3>{artistProfile.name}</h3>
             <div className="bio-text">
@@ -755,7 +953,7 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         <p className="page-hero-subtitle">Learn the art of Bansuri from the tradition of Guru-Shishya Parampara</p>
       </section>
 
-      {/* Rotating Notification Stripe - Flush against hero */}
+      {/* Rotating Notification Stripe - Flush against top */}
       <div className="notification-stripe" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', background: '#0a0a0a' }}>
         <div className="stripe-wrapper">
           <div className="stripe-container">
@@ -785,7 +983,7 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         </div>
       </div>
 
-      <section className="courses-section" style={{ background: '#1c1d1f', paddingTop: '60px', paddingBottom: '60px' }}>
+      <section className="courses-section">
         {isUserAdmin && (
           <div style={{ 
             background: 'rgba(212, 175, 55, 0.1)', 
@@ -808,10 +1006,9 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
             </button>
           </div>
         )}
-        <div className="courses-header" style={{ marginBottom: '50px' }}>
-          <span className="eyebrow" style={{ color: 'var(--gold)' }}>Learn Bansuri</span>
-          <h2 className="courses-heading" style={{ color: '#ffffff', fontSize: '36px', margin: '10px 0' }}>Master the Classical Flute</h2>
-          <p className="courses-desc" style={{ color: '#a0a0a0', maxWidth: '800px', margin: '0 auto' }}>
+        <div className="courses-header">
+          <h2 className="courses-heading">Master the Classical Flute</h2>
+          <p className="courses-desc">
             Whether you are a complete beginner or an advanced player, these carefully designed courses will guide you through the authentic tradition of Hindustani classical flute.
           </p>
         </div>
@@ -827,16 +1024,20 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
               const videoSrc = isEnrolled ? (signedUrls[course.id] || course.video_url) : null;
 
               return (
-                <div key={course.id} id={`course-card-${course.id}`} className="course-card" style={{ 
-                  background: '#2d2f31', 
-                  borderRadius: '8px', 
-                  overflow: 'hidden', 
-                  border: '1px solid #3e4143',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s ease'
-                }}>
-                  <div className="course-thumbnail" style={{ position: 'relative', aspectRatio: '16/9', background: '#000' }}>
+                <div 
+                  key={course.id} 
+                  id={`course-card-${course.id}`} 
+                  className="course-card"
+                  onClick={() => {
+                    if (isEnrolled) {
+                      setActiveCourseId(course.id);
+                      navigate("coursePlayer");
+                    } else if (payingFor !== course.id) {
+                      handleEnroll(course);
+                    }
+                  }}
+                >
+                  <div className="course-thumbnail">
                     {isEnrolled ? (
                       <div 
                         className="course-thumbnail-overlay-clickable" 
@@ -844,18 +1045,21 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                           setActiveCourseId(course.id);
                           navigate("coursePlayer");
                         }}
-                        style={{ cursor: 'pointer', position: 'relative' }}
                       >
                         {course.thumbnail_url ? (
                           <img src={course.thumbnail_url} alt={course.title} className="course-thumbnail-img" />
                         ) : (
                           <div className="course-no-thumb">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9 18V5l12-2v13" />
+                              <circle cx="6" cy="18" r="3" />
+                              <circle cx="18" cy="16" r="3" />
+                            </svg>
                           </div>
                         )}
                         <div className="course-play-overlay">
                           <div className="play-button-circle">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3" /></svg>
                           </div>
                           <span>Continue Learning</span>
                         </div>
@@ -866,96 +1070,39 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                           <img src={course.thumbnail_url} alt={course.title} className="course-thumbnail-img" />
                         ) : (
                           <div className="course-no-thumb">
-                            {/* Globe / Earth icon */}
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
                           </div>
                         )}
                       </div>
                     )}
                     {course.level && <div className="course-level-badge">{course.level}</div>}
                   </div>
-                  <div className="course-body" style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <h3 className="course-title" style={{ 
-                      margin: '0 0 8px', 
-                      fontFamily: "'Lora', Georgia, serif", 
-                      fontSize: '22px', 
-                      color: '#ffffff',
-                      fontWeight: 700 
-                    }}>{course.title}</h3>
-                    <p className="course-meta" style={{ fontSize: '14px', color: '#a0a0a0', margin: '0 0 16px' }}>{artistProfile.name}</p>
+                  <div className="course-body">
+                    <h3 className="course-title">{course.title}</h3>
+                    <p className="course-meta">by {artistProfile.name}</p>
                     
                     <div style={{ marginTop: 'auto' }}>
                       {isEnrolled ? (
-                        <div className="course-progress-container" style={{ padding: '16px 0' }}>
-                          <div className="progress-bar-bg" style={{ height: '4px', background: '#3e4143', width: '100%', marginBottom: '8px' }}>
-                            <div className="progress-bar-fill" style={{ width: '25%', height: '100%', background: '#a435f0' }}></div>
+                        <div className="course-progress-container">
+                          <div className="progress-bar-bg">
+                            <div className="progress-bar-fill" style={{ width: '25%' }}></div>
                           </div>
                           <div className="progress-text">
-                            <span style={{ fontSize: '12px', color: '#a0a0a0' }}>25% complete</span>
+                            <span>25% Complete</span>
+                            <span>Progress</span>
                           </div>
                         </div>
                       ) : (
                         <>
-                          <div style={{ display: 'flex', gap: '15px', color: '#a0a0a0', fontSize: '13px', borderTop: '1px solid #3e4143', paddingTop: '16px', marginBottom: '16px' }}>
-                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                               {course.duration}
-                             </span>
-                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                               {course.lessons} Lessons
-                             </span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontSize: '24px', fontWeight: 700, color: '#ffffff' }}>
-                              {course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'}
-                            </div>
-                            <button 
-                              className="enroll-btn"
-                              onClick={() => handleEnroll(course)}
-                              disabled={payingFor === course.id}
-                              style={{ 
-                                background: '#a435f0', 
-                                color: '#fff', 
-                                border: 'none', 
-                                padding: '10px 20px', 
-                                fontWeight: 700, 
-                                cursor: 'pointer', 
-                                fontSize: '14px',
-                                borderRadius: '4px',
-                                textTransform: 'uppercase'
-                              }}
-                            >
-                              {payingFor === course.id ? "..." : (user ? "Enroll Now" : "Login to Enroll")}
-                            </button>
+                          <div className="course-price-label">
+                            {course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'}
                           </div>
                         </>
                       )}
                     </div>
-                  </div>
-
-                  <div className="course-footer" style={{ borderTop: '1px solid #d1d7dc', padding: '12px 16px' }}>
-                    {isEnrolled ? (
-                      <button 
-                        className="enroll-btn-active" 
-                        onClick={() => {
-                          setActiveCourseId(course.id);
-                          navigate("coursePlayer");
-                        }}
-                        style={{ width: '100%', background: '#5624d0', color: '#fff', border: 'none', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}
-                      >
-                        START COURSE
-                      </button>
-                    ) : (
-                      <button 
-                        className="enroll-btn"
-                        onClick={() => handleEnroll(course)}
-                        disabled={payingFor === course.id}
-                        style={{ width: '100%', background: '#1c1d1f', color: '#fff', border: 'none', padding: '12px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}
-                      >
-                        {payingFor === course.id ? "Processing..." : (user ? "Enroll Now" : "Login to Enroll")}
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -1349,25 +1496,19 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
         <p className="page-hero-subtitle">Check availability and upcoming performances</p>
       </section>
 
-      <section style={{ padding: '80px 0', background: '#fcfaf7' }}>
+      <section style={{ padding: '16px 0', background: '#fcfaf7' }}>
         <div className="container">
-          <h2 className="serif-title text-center" style={{ marginBottom: '60px', fontSize: '36px' }}>Moments from Performances</h2>
+          <h2 className="standard-title text-center" style={{ marginBottom: '16px', fontSize: '36px' }}>Moments from Performances</h2>
           <div className="masonry-gallery">
-            {displayImages.map((src, i) => {
-              // Elegant staggered heights to create a clean collage masonry while filling from left-to-right
-              const heights = ['230px', '320px', '270px', '240px', '300px', '260px'];
-              const itemHeight = heights[i % heights.length];
-              return (
-                <div 
-                  key={i} 
-                  className="masonry-item" 
-                  style={{ height: itemHeight, cursor: 'pointer' }}
-                  onClick={() => setActiveImageIndex(i)}
-                >
-                  <img src={src} alt={`Gallery image ${i + 1}`} />
-                </div>
-              );
-            })}
+            {displayImages.map((src, i) => (
+              <div 
+                key={i} 
+                className="masonry-item" 
+                onClick={() => setActiveImageIndex(i)}
+              >
+                <img src={src} alt={`Gallery image ${i + 1}`} />
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1379,25 +1520,22 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
       </section>
 
       {/* Stage Setup Section */}
-      <section style={{ padding: '80px 0', background: '#fff' }}>
+      <section style={{ padding: '32px 0', background: '#fff' }}>
         <div className="container">
-          <h2 className="serif-title text-center" style={{ marginBottom: '40px', fontSize: '36px' }}>Stage Setup</h2>
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <h2 className="standard-title text-center" style={{ marginBottom: '24px', fontSize: '36px' }}>Stage Setup</h2>
+          <div style={{ maxWidth: '600px', margin: '0 auto' }}>
             {stageSetupUrl ? (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ 
                   borderRadius: '12px', 
                   overflow: 'hidden', 
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.1)', 
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.05)', 
                   marginBottom: '24px',
-                  background: '#f9f9f9',
-                  aspectRatio: '16/9',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #eee'
+                  justifyContent: 'center'
                 }}>
-                  <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                  <img src={stageSetupUrl} alt="Stage Setup" style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '12px' }} />
                 </div>
                 <button 
                   onClick={handleDownload}
@@ -1418,12 +1556,9 @@ function OrganizersCornerPage({ images: dbImages, calendarEvents, navigate, stag
       </section>
 
       {/* Weekly Schedule Section */}
-      <section style={{ padding: '80px 0', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+      <section style={{ padding: '32px 0', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
         <div className="container">
-          <h2 className="serif-title text-center" style={{ marginBottom: '20px', fontSize: '36px' }}>Weekly Availability Routine</h2>
-          <p style={{ color: '#666', textAlign: 'center', maxWidth: '600px', margin: '0 auto 40px auto', lineHeight: '1.6' }}>
-            Below is the standard weekly routine. Green/text filled cells indicate regular scheduled class slots, practice times, or ongoing student sessions.
-          </p>
+          <h2 className="standard-title text-center" style={{ marginBottom: '20px', fontSize: '36px' }}>Weekly Availability Routine</h2>
           <WeeklyScheduleTable schedule={weeklySchedule} />
         </div>
       </section>
@@ -1505,7 +1640,7 @@ function ContactPage() {
         </div>
 
         <form className="contact-form">
-          <h3 style={{ marginBottom: '32px' }}>Send A Message</h3>
+          <h3 style={{ marginBottom: '16px' }}>Send A Message</h3>
           <div className="form-group">
             <label>Name *</label>
             <input type="text" placeholder="Your name" required />
@@ -1516,30 +1651,12 @@ function ContactPage() {
           </div>
           <div className="form-group">
             <label>Message *</label>
-            <textarea rows={5} placeholder="How can I help you?" required></textarea>
+            <textarea rows={3} placeholder="How can I help you?" required></textarea>
           </div>
           <button type="submit" className="submit-btn">Submit</button>
         </form>
       </div>
 
-      <footer className="site-footer">
-        <div className="footer-col">
-          <h4>{artistProfile.name}</h4>
-          <p>© 2026 Flute Artist. Powered by Flute Roots.</p>
-        </div>
-        <div className="footer-col">
-          <h4>Address</h4>
-          <p>K-8 Kalinga Nagar, Bhubaneswar, Odisha</p>
-        </div>
-        <div className="footer-col">
-          <h4>Phone</h4>
-          <p>{artistProfile.phone}</p>
-        </div>
-        <div className="footer-col">
-          <h4>Email</h4>
-          <p>{artistProfile.email}</p>
-        </div>
-      </footer>
     </>
   );
 }
