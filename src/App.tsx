@@ -505,9 +505,36 @@ function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroA
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (audioRef.current && heroAudioUrl) {
-      audioRef.current.volume = 0.4;
-      audioRef.current.play().catch(e => console.log("Autoplay prevented:", e));
+    const audio = audioRef.current;
+    if (!audio || !heroAudioUrl) return;
+
+    audio.volume = 0.4;
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.log("Autoplay prevented by browser. Waiting for interaction...", error);
+        
+        const startAudio = () => {
+          audio.play().catch(e => console.log("Audio play still prevented:", e));
+          document.removeEventListener('click', startAudio);
+          document.removeEventListener('touchstart', startAudio);
+          document.removeEventListener('keydown', startAudio);
+          document.removeEventListener('scroll', startAudio);
+        };
+
+        document.addEventListener('click', startAudio);
+        document.addEventListener('touchstart', startAudio);
+        document.addEventListener('keydown', startAudio);
+        document.addEventListener('scroll', startAudio);
+        
+        return () => {
+          document.removeEventListener('click', startAudio);
+          document.removeEventListener('touchstart', startAudio);
+          document.removeEventListener('keydown', startAudio);
+          document.removeEventListener('scroll', startAudio);
+        };
+      });
     }
   }, [heroAudioUrl]);
 
