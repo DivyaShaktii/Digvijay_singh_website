@@ -1,6 +1,7 @@
 // Fixed TypeScript errors and improved type safety for deployment
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
+import { removeBackground } from "@imgly/background-removal";
 import type { User } from "@supabase/supabase-js";
 
 type AppRoute = "home" | "biography" | "FluteRoots" | "organizersCorner" | "contact" | "admin" | "login" | "coursePlayer";
@@ -122,6 +123,7 @@ function App() {
   const [galleryItems, setGalleryItems] = useState<GalleryImage[]>([]);
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
   const [heroImageUrl, setHeroImageUrl] = useState<string>(images.hero);
+  const [heroAudioUrl, setHeroAudioUrl] = useState<string>("");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const defaultWeeklySchedule: Record<string, Record<string, string>> = {
     "5-6 AM": { MON: "", TUE: "Thiag", WED: "", THU: "", FRI: "", SAT: "Suchi", SUN: "Ram" },
@@ -186,6 +188,9 @@ function App() {
         const settings = settingsRes.data;
         const hero = settings.find(s => s.key === 'hero_image_url');
         if (hero) setHeroImageUrl(hero.value);
+
+        const heroAudio = settings.find(s => s.key === 'hero_audio_url');
+        if (heroAudio) setHeroAudioUrl(heroAudio.value);
 
         const newIntro = { ...introVideo };
         settings.forEach(s => {
@@ -364,17 +369,16 @@ function App() {
               <span className="logo-text" style={{ fontSize: '22px', transition: 'color 0.3s' }}>Flute Roots</span>
             </div>
             <nav className="site-nav">
-              <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className={`nav-link ${route === "home" ? "active" : ""}`}>Home</a>
-              <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className={`nav-link ${route === "FluteRoots" ? "active" : ""}`}>Courses</a>
-              <a href="/organizersCorner" onClick={(e) => { e.preventDefault(); navigate("organizersCorner"); }} className={`nav-link ${route === "organizersCorner" ? "active" : ""}`}>Organizers Corner</a>
-              <a href="/biography" onClick={(e) => { e.preventDefault(); navigate("biography"); }} className={`nav-link ${route === "biography" ? "active" : ""}`}>Biography</a>
-
-              <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className={`nav-link ${route === "contact" ? "active" : ""}`}>Contact</a>
+              <a href="/" onClick={(e) => { e.preventDefault(); navigate("home"); }} className={`nav-link ${route === "home" ? "active" : ""}`}>HOME</a>
+              <a href="/FluteRoots" onClick={(e) => { e.preventDefault(); navigate("FluteRoots"); }} className={`nav-link ${route === "FluteRoots" ? "active" : ""}`}>COURSES</a>
+              <a href="/organizersCorner" onClick={(e) => { e.preventDefault(); navigate("organizersCorner"); }} className={`nav-link ${route === "organizersCorner" ? "active" : ""}`}>ORGANIZERS CORNER</a>
+              <a href="/biography" onClick={(e) => { e.preventDefault(); navigate("biography"); }} className={`nav-link ${route === "biography" ? "active" : ""}`}>BIOGRAPHY</a>
+              <a href="/contact" onClick={(e) => { e.preventDefault(); navigate("contact"); }} className={`nav-link ${route === "contact" ? "active" : ""}`}>CONTACT</a>
             </nav>
             <div className="auth-nav">
               {isUserAdmin && <a href="/admin" onClick={(e) => { e.preventDefault(); navigate("admin"); }} className="dashboard-pill-btn">Dashboard</a>}
               {user ? (
-                <button onClick={() => supabase.auth.signOut()} className="nav-link signout-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Sign Out</button>
+                <button onClick={() => supabase.auth.signOut()} className="nav-link signout-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textTransform: 'none', letterSpacing: 'normal', fontWeight: 'normal' }}>Sign Out</button>
               ) : (
                 <a href="/login" onClick={(e) => { e.preventDefault(); navigate("login"); }} className="nav-link login-btn">Login</a>
               )}
@@ -384,7 +388,7 @@ function App() {
       )}
 
       <main className={!onAdminPage ? (route === "home" ? "has-header home-main" : "has-header") : ""}>
-        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
+        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} setHeroImageUrl={setHeroImageUrl} heroAudioUrl={heroAudioUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
         {route === "biography" && <BiographyPage bioImageUrl={bioImageUrl} bioParagraphs={bioParagraphs} bioAwards={bioAwards} />}
         {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} weeklySchedule={weeklySchedule} />}
         {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} weeklySchedule={weeklySchedule} />}
@@ -397,6 +401,8 @@ function App() {
             galleryItems={galleryItems} 
             heroImageUrl={heroImageUrl} 
             setHeroImageUrl={setHeroImageUrl} 
+            heroAudioUrl={heroAudioUrl}
+            setHeroAudioUrl={setHeroAudioUrl}
             introVideo={introVideo}
             calendarEvents={calendarEvents}
             stageSetupUrl={stageSetupUrl}
@@ -487,13 +493,24 @@ function Footer() {
   );
 }
 
-function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEvents }: { 
+function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroAudioUrl, introVideo, calendarEvents }: { 
   navigate: (to: AppRoute) => void,
   galleryItems: GalleryImage[], 
   heroImageUrl: string,
+  setHeroImageUrl: (url: string) => void,
+  heroAudioUrl?: string,
   introVideo: { url: string, title: string, description: string },
   calendarEvents: CalendarEvent[]
 }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (audioRef.current && heroAudioUrl) {
+      audioRef.current.volume = 0.4;
+      audioRef.current.play().catch(e => console.log("Autoplay prevented:", e));
+    }
+  }, [heroAudioUrl]);
+
   const { url, title, description } = introVideo;
   const videoId = getYouTubeId(url);
   const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0` : url;
@@ -566,32 +583,27 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
           </div>
         </div>
 
-        <div className="container">
+        <div className="container" style={{ position: 'relative' }}>
           <div className="hero-container">
             <div className="hero-editorial">
-              <span className="hero-eyebrow">FLUTE ARTIST</span>
+              <span className="hero-eyebrow" style={{ color: '#a0a0a0', letterSpacing: '0.4em' }}>FLUTE ARTIST</span>
               <div className="hero-name-container">
-                <span className="hero-name-serif">Digvijaysinh</span>
-                <span className="hero-name-cursive">Chauhan</span>
+                <span className="hero-name-serif" style={{ fontWeight: 300, fontSize: '5rem', lineHeight: 1.0 }}>Digvijaysinh</span>
+                <span className="hero-name-cursive" style={{ fontStyle: 'italic', fontWeight: 400, fontSize: '5rem', lineHeight: 1.0, color: 'var(--text-dark)', transform: 'none', marginLeft: 0, marginTop: '10px', display: 'block' }}>Chauhan</span>
               </div>
-              <div className="hero-divider-olive"></div>
-              <p className="hero-desc">
+              <div className="hero-divider-olive" style={{ backgroundColor: 'var(--gold)', width: '40px' }}></div>
+              <p className="hero-desc" style={{ color: '#a0a0a0', fontSize: '1.1rem', letterSpacing: '0.05em' }}>
                 Rooted in tradition.<br />
                 Inspired by pure expression.
               </p>
               <div className="hero-actions">
-                <button onClick={() => navigate("FluteRoots")} className="btn-pill btn-primary-green">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '8px', display: 'inline-block', verticalAlign: 'middle' }}>
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  Listen Now
-                </button>
-                <button onClick={() => navigate("FluteRoots")} className="btn-pill btn-secondary-outline">Explore Courses</button>
+                {heroAudioUrl && <audio ref={audioRef} src={heroAudioUrl} loop autoPlay />}
+                <button onClick={() => navigate("FluteRoots")} className="btn-pill btn-primary-green" style={{ backgroundColor: 'var(--bg-dark)', color: '#fff', border: 'none', padding: '14px 32px' }}>Explore Courses</button>
               </div>
             </div>
             <div className="hero-media">
               <div className="portrait-spotlight"></div>
-              <div className="portrait-wrapper">
+              <div className="portrait-wrapper" style={{ position: 'relative' }}>
                 <img 
                   src={heroImageUrl || images.hero} 
                   alt={artistProfile.name} 
@@ -601,15 +613,6 @@ function HomePage({ navigate, galleryItems, heroImageUrl, introVideo, calendarEv
                 />
               </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Absolute screen-aligned scroll down cue matching the mockup */}
-        <div className="hero-scroll-indicator">
-          <div className="scroll-circle">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
           </div>
         </div>
       </section>
@@ -1667,6 +1670,8 @@ function AdminPage({
   galleryItems, 
   heroImageUrl, 
   setHeroImageUrl, 
+  heroAudioUrl,
+  setHeroAudioUrl,
   introVideo, 
   calendarEvents, 
   stageSetupUrl,
@@ -1689,6 +1694,8 @@ function AdminPage({
   galleryItems: GalleryImage[], 
   heroImageUrl: string, 
   setHeroImageUrl: (url: string) => void,
+  heroAudioUrl?: string,
+  setHeroAudioUrl?: (url: string) => void,
   introVideo: { url: string, title: string, description: string },
   calendarEvents: CalendarEvent[],
   stageSetupUrl: string,
@@ -1716,6 +1723,8 @@ function AdminPage({
   }, [weeklySchedule]);
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
+  const [isProcessingBg, setIsProcessingBg] = useState(false);
+  const [bgProcessStep, setBgProcessStep] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const [introForm, setIntroForm] = useState(introVideo);
   const [announcementForm, setAnnouncementForm] = useState(announcements);
@@ -2125,26 +2134,92 @@ function AdminPage({
     }
   };
 
-  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHeroAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading('hero');
+    setUploading('hero_audio');
     try {
-      if (file.size > 10 * 1024 * 1024) {
-        alert("Hero image is too large (>10MB). Please use a compressed image.");
+      if (file.size > 20 * 1024 * 1024) {
+        alert("Audio file is too large (>20MB). Please use a smaller file.");
         setUploading(null);
         return;
       }
 
-      console.log("Starting hero upload...");
       const fileExt = file.name.split('.').pop();
-      const fileName = `hero_${Date.now()}.${fileExt}`;
+      const fileName = `hero_audio_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('gallery-photos')
         .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('gallery-photos')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase
+        .from('settings')
+        .upsert({ key: 'hero_audio_url', value: publicUrl }, { onConflict: 'key' });
+
+      if (dbError) {
+        alert("Database error saving audio URL, but file was uploaded.");
+      } else {
+        if (setHeroAudioUrl) setHeroAudioUrl(publicUrl);
+        showToast("Hero audio updated successfully!");
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setUploading(null);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading('hero');
+    setIsProcessingBg(true);
+    setBgProcessStep("Detecting background...");
+    
+    let uploadBlob: Blob = file;
+    try {
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Hero image is too large (>10MB). Please use a compressed image.");
+        setUploading(null);
+        setIsProcessingBg(false);
+        return;
+      }
+
+      try {
+        console.log("Starting background removal...");
+        uploadBlob = await removeBackground(file, {
+          progress: (key: string, current: number, total: number) => {
+            if (key === 'compute:inference') {
+              setBgProcessStep(`Removing BG... ${Math.round((current/total)*100)}%`);
+            } else if (key.startsWith('fetch:')) {
+              setBgProcessStep(`Loading AI model... ${Math.round((current/total)*100)}%`);
+            }
+          }
+        });
+        setBgProcessStep("Uploading to cloud...");
+      } catch (bgError) {
+        console.error("Background removal failed, uploading original:", bgError);
+        setBgProcessStep("BG removal failed. Uploading original...");
+      }
+
+      console.log("Starting hero upload...");
+      const fileExt = "png"; // ML background removal outputs PNG
+      const fileName = `hero_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('gallery-photos')
+        .upload(filePath, uploadBlob, { upsert: true, contentType: "image/png" });
 
       if (uploadError) {
         console.error("Upload error details:", uploadError);
@@ -2172,7 +2247,8 @@ function AdminPage({
         }
       } else {
         setHeroImageUrl(publicUrl);
-        showToast("Hero image updated successfully!");
+        showToast("Hero image updated and background removed!");
+        navigate("home");
       }
     } catch (err: any) {
       console.error("Hero upload catch block:", err);
@@ -2183,6 +2259,8 @@ function AdminPage({
       }
     } finally {
       setUploading(null);
+      setIsProcessingBg(false);
+      setBgProcessStep("");
       if (e.target) e.target.value = "";
     }
   };
@@ -2492,16 +2570,21 @@ function AdminPage({
         {/* ==================== HOMEPAGE TAB ==================== */}
         {activeTab === 'homepage' && (
           <>
-            {/* Hero Image Management - RESTORED TO TOP WITH PREVIOUS STYLING */}
+            {/* Hero Content Management */}
             <div className="admin-section-card" style={{ marginBottom: '40px', padding: '32px', background: 'white', borderRadius: '8px', border: '1px solid #eee' }}>
-              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Image Management</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
+              <h3 style={{ marginBottom: '24px', fontFamily: 'var(--font-serif)' }}>Hero Content Management</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center', marginBottom: '32px' }}>
                 <div>
-                  <div className="hero-preview" style={{ width: '100%', aspectRatio: '16/9', background: '#000', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #eee' }}>
-                    <img src={heroImageUrl} alt="Current Hero" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div className="hero-preview" style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#e9ecef', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px', border: '1px solid #eee' }}>
+                    <img src={heroImageUrl} alt="Current Hero" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: isProcessingBg ? 0.3 : 1, transition: 'opacity 0.3s' }} />
+                    {isProcessingBg && (
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(245, 240, 232, 0.7)' }}>
+                        <span style={{ color: 'var(--text-dark)', fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', padding: '0 10px' }}>{bgProcessStep}</span>
+                      </div>
+                    )}
                   </div>
                   <label className="admin-btn admin-btn-primary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center' }}>
-                    {uploading === 'hero' ? 'Uploading...' : 'Change Hero Image'}
+                    {uploading === 'hero' ? 'Processing...' : 'Upload & Remove BG'}
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeroUpload} disabled={uploading === 'hero'} />
                   </label>
                 </div>
@@ -2511,6 +2594,27 @@ function AdminPage({
                     <li style={{ marginBottom: '8px' }}>Recommended size: 1920x1080px or larger.</li>
                     <li style={{ marginBottom: '8px' }}>The image will be centered and will cover the entire hero area.</li>
                     <li style={{ marginBottom: '8px' }}>Try to use an image with dark tones as it works best with the white typography.</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div style={{ borderTop: '1px solid #eee', paddingTop: '24px', display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'center' }}>
+                <div>
+                  {heroAudioUrl ? (
+                    <audio src={heroAudioUrl} controls style={{ width: '100%', marginBottom: '16px' }} />
+                  ) : (
+                    <div style={{ padding: '20px', background: '#f5f5f5', borderRadius: '8px', textAlign: 'center', marginBottom: '16px', color: '#666' }}>No audio set</div>
+                  )}
+                  <label className="admin-btn admin-btn-secondary" style={{ cursor: 'pointer', width: '100%', textAlign: 'center', display: 'block', backgroundColor: '#eef2ef', color: '#3d5a4a', padding: '12px', borderRadius: '4px', fontWeight: 600 }}>
+                    {uploading === 'hero_audio' ? 'Uploading Audio...' : 'Upload MP3 (Listen Now)'}
+                    <input type="file" accept="audio/mpeg,audio/mp3,audio/wav" style={{ display: 'none' }} onChange={handleHeroAudioUpload} disabled={uploading === 'hero_audio'} />
+                  </label>
+                </div>
+                <div style={{ color: '#666', fontSize: '14px' }}>
+                  <p style={{ marginBottom: '12px' }}><strong>Hero Audio (Listen Now):</strong> If set, the "Listen Now" button will play this track instead of redirecting to Courses.</p>
+                  <ul style={{ paddingLeft: '20px' }}>
+                    <li style={{ marginBottom: '8px' }}>Format: MP3 or WAV</li>
+                    <li style={{ marginBottom: '8px' }}>Max size: 20MB</li>
                   </ul>
                 </div>
               </div>
