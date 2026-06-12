@@ -122,7 +122,7 @@ function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [galleryItems, setGalleryItems] = useState<GalleryImage[]>([]);
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
-  const [heroImageUrl, setHeroImageUrl] = useState<string>(images.hero);
+  const [heroImageUrl, setHeroImageUrl] = useState<string>(() => localStorage.getItem('local_hero_image') || images.hero);
   const [heroAudioUrl, setHeroAudioUrl] = useState<string>("");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const defaultWeeklySchedule: Record<string, Record<string, string>> = {
@@ -187,7 +187,10 @@ function App() {
       if (!settingsRes.error && settingsRes.data) {
         const settings = settingsRes.data;
         const hero = settings.find(s => s.key === 'hero_image_url');
-        if (hero) setHeroImageUrl(hero.value);
+        if (hero) {
+          setHeroImageUrl(hero.value);
+          localStorage.setItem('local_hero_image', hero.value);
+        }
 
         const heroAudio = settings.find(s => s.key === 'hero_audio_url');
         if (heroAudio) setHeroAudioUrl(heroAudio.value);
@@ -1052,6 +1055,8 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
             {displayCourses.map((course) => {
               const isEnrolled = enrollments.includes(course.id);
               const videoSrc = isEnrolled ? (signedUrls[course.id] || course.video_url) : null;
+              const ytId = getYouTubeId(course.video_url);
+              const displayThumb = course.thumbnail_url || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
 
               return (
                 <div 
@@ -1076,8 +1081,8 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                           navigate("coursePlayer");
                         }}
                       >
-                        {course.thumbnail_url ? (
-                          <img src={course.thumbnail_url} alt={course.title} className="course-thumbnail-img" />
+                        {displayThumb ? (
+                          <img src={displayThumb} alt={course.title} className="course-thumbnail-img" />
                         ) : (
                           <div className="course-no-thumb">
                             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1096,8 +1101,8 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                       </div>
                     ) : (
                       <div className="course-locked-overlay">
-                        {course.thumbnail_url ? (
-                          <img src={course.thumbnail_url} alt={course.title} className="course-thumbnail-img" />
+                        {displayThumb ? (
+                          <img src={displayThumb} alt={course.title} className="course-thumbnail-img" />
                         ) : (
                           <div className="course-no-thumb">
                             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1113,19 +1118,14 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
                   <div className="course-body">
                     <h3 className="course-title">{course.title}</h3>
                     <p className="course-meta">by {artistProfile.name}</p>
+                    {course.description && (
+                      <p className="course-description-preview">
+                        {course.description}
+                      </p>
+                    )}
                     
                     <div style={{ marginTop: 'auto' }}>
-                      {isEnrolled ? (
-                        <div className="course-progress-container">
-                          <div className="progress-bar-bg">
-                            <div className="progress-bar-fill" style={{ width: '25%' }}></div>
-                          </div>
-                          <div className="progress-text">
-                            <span>25% Complete</span>
-                            <span>Progress</span>
-                          </div>
-                        </div>
-                      ) : (
+                      {isEnrolled ? null : (
                         <>
                           <div className="course-price-label">
                             {course.price ? (course.price.startsWith('₹') ? course.price : `₹${course.price}`) : 'Free'}

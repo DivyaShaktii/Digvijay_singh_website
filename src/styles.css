@@ -3149,3 +3149,155 @@ button.admin-nav-item { background: none; border: none; width: 100%; text-align:
 }
 
 
+
+
+
+/* --- Vertical List Layout Overrides --- */
+.courses-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 24px !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+}
+
+.course-card {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2) !important;
+  border-radius: 0 !important;
+  padding-bottom: 24px !important;
+  box-shadow: none !important;
+}
+
+.course-card:last-child {
+  border-bottom: none !important;
+}
+
+.course-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.course-thumbnail {
+  width: 260px !important;
+  height: 146px !important;
+  flex-shrink: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  margin-right: 20px !important;
+}
+
+.course-body {
+  padding: 0 !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+}
+
+.course-title {
+  font-size: 20px !important;
+  margin-bottom: 8px !important;
+}
+
+.course-meta {
+  padding-top: 0 !important;
+  border-top: none !important;
+  margin-bottom: 12px !important;
+}
+
+@media (max-width: 768px) {
+  .course-card {
+    flex-direction: column !important;
+  }
+  .course-thumbnail {
+    width: 100% !important;
+    height: 200px !important;
+    margin-right: 0 !important;
+    margin-bottom: 16px !important;
+  }
+}
+
+
+
+
+/* Text color fixes for light background */
+.course-body {
+  color: #444 !important;
+}
+
+.course-body p,
+.course-body span,
+.course-meta,
+.course-author,
+.course-progress-text {
+  color: #444 !important;
+}
+
+.course-title {
+  color: #000 !important;
+}
+
+
+
+
+/* Thumbnail Overlay Darkening */
+.course-thumbnail-overlay-clickable::before,
+.course-locked-overlay::before,
+.course-thumbnail-overlay-clickable,
+.course-locked-overlay,
+.course-play-overlay {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+.course-thumbnail-img {
+  opacity: 1 !important;
+  filter: brightness(0.8) !important; /* Make the images themselves a bit darker */
+}
+
+/* Force ALL text inside course-card to be dark so none are missed */
+.course-card h3,
+.course-card p,
+.course-card span,
+.course-card div {
+  color: #222 !important;
+}
+
+/* Except for badges and overlays which need white/light text */
+.course-level-badge {
+  color: #fff !important;
+  background: #333 !important;
+}
+
+.course-play-overlay span,
+.course-play-overlay svg {
+  color: #fff !important;
+}
+
+.progress-bar-bg {
+  background: #ddd !important;
+}
+.progress-bar-fill {
+  background: #333 !important;
+}
+
+
+
+
+/* Course Description Preview */
+.course-description-preview {
+  font-size: 14px !important;
+  color: #555 !important;
+  margin-top: 4px !important;
+  margin-bottom: 12px !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  line-height: 1.5 !important;
+}
+
