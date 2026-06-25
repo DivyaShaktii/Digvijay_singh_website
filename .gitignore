@@ -13,3 +13,8 @@ fonts.gstatic.com
 rakeshchaurasia.com
 s.w.org
 www.youtube.com
+
+# Ignore environment variables
+.env
+# Ignore environment variables
+.env

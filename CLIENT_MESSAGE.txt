@@ -1,0 +1,35 @@
+Hello!
+
+To get the Flute Roots platform fully connected to your accounts and ready for launch, we need a few "secret keys" from your dashboards. 
+
+Here is a quick breakdown of how your platform is structured:
+
+1. SUPABASE (Database, Images, & Logins)
+Supabase acts as the main brain of the platform. It securely handles all student logins, stores all text content (course details, announcements), and hosts all your images (gallery photos, thumbnails).
+
+2. BUNNY.NET (Video Streaming)
+We are using Bunny Stream exclusively for your video lessons. Videos are massive files that require specialized hosting. Bunny Stream protects your paid courses from being easily downloaded (piracy protection) and automatically adjusts video quality so students don't experience buffering.
+
+---
+ACTION REQUIRED: THE KEYS WE NEED
+
+Please securely share the following keys with us. (Do not post them publicly).
+
+PART 1: SUPABASE KEYS
+1. Log into your Supabase Dashboard and select your project.
+2. Click on the "Settings" (gear icon) in the bottom left.
+3. Click on "API" under Configuration.
+Please send us:
+- Project URL: 
+- Project API Key (The one labeled "anon" or "public"): 
+
+PART 2: BUNNY STREAM KEYS
+1. Log into your Bunny.net Dashboard.
+2. Go to "Stream" on the left menu.
+3. Click on the Video Library you created for your courses.
+4. Go to "API" on the left sidebar of that library.
+Please send us:
+- Video Library ID: 
+- API Key (The key specific to this Video Library): 
+
+Once we have these 4 items, we will plug them into the code and the site will be fully connected to your accounts!

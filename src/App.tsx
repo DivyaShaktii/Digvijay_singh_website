@@ -846,7 +846,7 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
         if (course && course.video_url && course.video_url.includes('supabase.co')) {
           // Extract filename from public URL or just use the URL if it's already a path
           const path = course.video_url.split('/').pop() || "";
-          const { data, error } = await supabase.storage.from('course-media').createSignedUrl(path, 7200); // 2 hours
+          const { data, error } = await supabase.storage.from('images').createSignedUrl(path, 7200); // 2 hours
           if (data) links[id] = data.signedUrl;
         }
       }
@@ -1212,7 +1212,7 @@ function CoursePlayerPage({ courseId, courses, user, navigate, announcements }: 
           setVideoUrl(null);
         } else if (course.video_url.includes('supabase.co')) {
           const path = course.video_url.split('/').pop() || "";
-          const { data, error } = await supabase.storage.from('course-media').createSignedUrl(path, 7200);
+          const { data, error } = await supabase.storage.from('images').createSignedUrl(path, 7200);
           if (error) {
             console.error("Error creating signed URL:", error);
             setVideoUrl(course.video_url); // fallback
@@ -1270,7 +1270,8 @@ function CoursePlayerPage({ courseId, courses, user, navigate, announcements }: 
                 (() => {
                   const ytId = getYouTubeId(videoUrl);
                   const isYt = videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be");
-                  if (ytId || isYt) {
+                  const isBunny = videoUrl.includes("mediadelivery.net");
+                  if (ytId || isYt || isBunny) {
                     const embedSrc = ytId 
                       ? `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&controls=1&disablekb=1&origin=${encodeURIComponent(window.location.origin)}`
                       : videoUrl;
@@ -1768,13 +1769,13 @@ function AdminPage({
 
   // Fetch videos from storage bucket
   const fetchVideos = useCallback(async () => {
-    const { data } = await supabase.storage.from('course-media').list('', { limit: 100 });
+    const { data } = await supabase.storage.from('images').list('', { limit: 100 });
     if (data) {
       const videos = data
         .filter(f => f.name.match(/\.(mp4|webm|mov|avi|mkv)$/i))
         .map(f => ({
           name: f.name,
-          url: supabase.storage.from('course-media').getPublicUrl(f.name).data.publicUrl
+          url: supabase.storage.from('images').getPublicUrl(f.name).data.publicUrl
         }));
       setVideoFiles(videos);
     }
@@ -1814,11 +1815,67 @@ function AdminPage({
     setVideoSource('youtube');
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucket: 'course-media' | 'gallery-photos') => {
+  const handleBunnyVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading('bunny-video');
+    setUploadProgress('Initializing Bunny.net upload...');
+
+    try {
+      const libraryId = import.meta.env.VITE_BUNNY_STREAM_LIBRARY_ID;
+      const apiKey = import.meta.env.VITE_BUNNY_STREAM_API_KEY;
+
+      if (!libraryId || !apiKey) {
+        throw new Error("Bunny Stream API keys are missing in .env");
+      }
+
+      setUploadProgress('Creating video entry in Bunny.net...');
+      const createRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
+        method: 'POST',
+        headers: {
+          'AccessKey': apiKey,
+          'Content-Type': 'application/json',
+          'accept': 'application/json'
+        },
+        body: JSON.stringify({ title: file.name })
+      });
+
+      if (!createRes.ok) throw new Error("Failed to create video on Bunny.net");
+      const createData = await createRes.json();
+      const videoId = createData.guid;
+
+      setUploadProgress('Uploading video data (this might take a while)...');
+      const uploadRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`, {
+        method: 'PUT',
+        headers: {
+          'AccessKey': apiKey,
+          'Content-Type': 'application/octet-stream',
+          'accept': 'application/json'
+        },
+        body: file
+      });
+
+      if (!uploadRes.ok) throw new Error("Failed to upload video data");
+
+      const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}`;
+      setForm(prev => ({ ...prev, video_url: embedUrl }));
+      showToast("Bunny.net video uploaded successfully!");
+
+    } catch (err: any) {
+      alert("UPLOAD ERROR: " + err.message);
+    } finally {
+      setUploading(null);
+      setUploadProgress('');
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucket: 'images' | 'images') => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setUploading(bucket === 'course-media' ? 'course-media' : 'gallery');
+    setUploading(bucket === 'images' ? 'images' : 'gallery');
     
     try {
       if (!user) {
@@ -1856,7 +1913,7 @@ function AdminPage({
           .from(bucket)
           .getPublicUrl(fileName);
 
-        if (bucket === 'course-media') {
+        if (bucket === 'images') {
           setForm(prev => ({ ...prev, video_url: publicUrl }));
           fetchVideos();
           showToast("Video uploaded successfully!");
@@ -1868,7 +1925,7 @@ function AdminPage({
         }
       }
 
-      if (bucket === 'gallery-photos') {
+      if (bucket === 'images') {
         onRefresh();
         showToast(`${files.length} images added to gallery!`);
       }
@@ -1898,13 +1955,13 @@ function AdminPage({
       const fileName = `${Date.now()}_thumb.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('course-media')
+        .from('images')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('course-media')
+        .from('images')
         .getPublicUrl(fileName);
 
       setForm({ ...form, thumbnail_url: publicUrl });
@@ -1940,13 +1997,13 @@ function AdminPage({
       const fileName = `${Date.now()}_notes.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('course-media')
+        .from('images')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('course-media')
+        .from('images')
         .getPublicUrl(fileName);
 
       setForm({ ...form, notes_url: publicUrl });
@@ -1984,7 +2041,7 @@ function AdminPage({
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('gallery-photos')
+          .from('images')
           .upload(fileName, file, { upsert: true });
 
         if (!uploadError) successCount++;
@@ -2024,7 +2081,7 @@ function AdminPage({
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('course-media')
+          .from('images')
           .upload(fileName, file, { upsert: true });
 
         if (!uploadError) successCount++;
@@ -2045,7 +2102,7 @@ function AdminPage({
   const handleDeleteVideo = async (name: string) => {
     if (!confirm("Delete this video?")) return;
     try {
-      const { error } = await supabase.storage.from('course-media').remove([name]);
+      const { error } = await supabase.storage.from('images').remove([name]);
       if (error) alert("Server Error: " + error.message);
       else { fetchVideos(); showToast("Video deleted."); }
     } catch (err: any) {
@@ -2178,13 +2235,13 @@ function AdminPage({
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .getPublicUrl(filePath);
 
       const { error: dbError } = await supabase
@@ -2245,7 +2302,7 @@ function AdminPage({
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .upload(filePath, uploadBlob, { upsert: true, contentType: "image/png" });
 
       if (uploadError) {
@@ -2254,7 +2311,7 @@ function AdminPage({
       }
 
       const { data: { publicUrl } } = supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .getPublicUrl(filePath);
 
       console.log("File uploaded, public URL:", publicUrl);
@@ -2308,13 +2365,13 @@ function AdminPage({
       const fileName = `stage_setup_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .getPublicUrl(fileName);
 
       const { error: dbError } = await supabase
@@ -2431,13 +2488,13 @@ function AdminPage({
       const fileName = `bio_profile_${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('gallery-photos')
+        .from('images')
         .getPublicUrl(fileName);
 
       setBioFormImageUrl(publicUrl);
@@ -2927,7 +2984,7 @@ function AdminPage({
                         type="button"
                         onClick={() => {
                           setVideoSource('youtube');
-                          if (form.video_url && !form.video_url.includes('youtube.com') && !form.video_url.includes('youtu.be')) {
+                          if (form.video_url && !form.video_url.includes('youtube.com') && !form.video_url.includes('youtu.be') && !form.video_url.includes('mediadelivery.net')) {
                             setForm(prev => ({ ...prev, video_url: "" }));
                           }
                         }}
@@ -2943,13 +3000,13 @@ function AdminPage({
                           transition: 'all 0.2s'
                         }}
                       >
-                        🎥 YouTube Video Link
+                        🎥 YouTube / Embed URL
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           setVideoSource('mp4');
-                          if (form.video_url && (form.video_url.includes('youtube.com') || form.video_url.includes('youtu.be'))) {
+                          if (form.video_url && (form.video_url.includes('youtube.com') || form.video_url.includes('youtu.be') || form.video_url.includes('mediadelivery.net'))) {
                             setForm(prev => ({ ...prev, video_url: "" }));
                           }
                         }}
@@ -2971,10 +3028,10 @@ function AdminPage({
 
                     {videoSource === 'youtube' ? (
                       <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>YouTube Video URL</label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>YouTube / Bunny Stream Embed URL</label>
                         <input 
                           type="text" 
-                          placeholder="Paste YouTube URL (e.g. https://www.youtube.com/watch?v=...) here..." 
+                          placeholder="Paste YouTube or Embed URL here..." 
                           value={form.video_url} 
                           onChange={e => setForm({...form, video_url: e.target.value})}
                           style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
@@ -2988,24 +3045,25 @@ function AdminPage({
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <div>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Upload Video File (MP4, WebM)</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Upload Video File Directly to Bunny.net</label>
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             <label className="admin-btn admin-btn-ghost" style={{ margin: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                              {uploading === 'course-media' ? '⏳ Uploading Video...' : '📁 Upload MP4 File'}
+                              {uploading === 'bunny-video' ? '⏳ Uploading Video...' : '📁 Upload MP4 File'}
                               <input 
                                 type="file" 
                                 accept="video/mp4,video/webm,video/quicktime" 
                                 style={{ display: 'none' }} 
-                                onChange={e => handleFileUpload(e, 'course-media')} 
+                                onChange={handleBunnyVideoUpload} 
+                                disabled={uploading === 'bunny-video'}
                               />
                             </label>
-                            {uploading === 'course-media' && (
+                            {uploading === 'bunny-video' && (
                               <span style={{ fontSize: '13px', color: 'var(--gold)' }}>
                                 {uploadProgress || 'Uploading file... Please wait.'}
                               </span>
                             )}
                           </div>
-                          <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Max file size recommended: 50MB (Supabase Free Tier limits)</p>
+                          <p style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Video will securely upload to Bunny.net bypassing Supabase limits.</p>
                         </div>
 
                         <div>
@@ -3092,7 +3150,8 @@ function AdminPage({
                       (() => {
                         const ytId = getYouTubeId(form.video_url);
                         const isYt = form.video_url.includes("youtube.com") || form.video_url.includes("youtu.be");
-                        if (ytId || isYt) {
+                        const isBunny = form.video_url.includes("mediadelivery.net");
+                        if (ytId || isYt || isBunny) {
                           const embedSrc = ytId 
                             ? `https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&controls=1`
                             : form.video_url;
@@ -3111,7 +3170,7 @@ function AdminPage({
                     ) : (
                       <div className="admin-preview-placeholder">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                        <p>{uploading === 'course-media' ? 'Processing...' : 'Video Preview'}</p>
+                        <p>{uploading === 'images' ? 'Processing...' : 'Video Preview'}</p>
                       </div>
                     )}
                   </div>
@@ -3329,7 +3388,7 @@ function AdminPage({
                   type="file" 
                   accept="image/*" 
                   multiple
-                  onChange={(e) => handleFileUpload(e, 'gallery-photos')} 
+                  onChange={(e) => handleFileUpload(e, 'images')} 
                   disabled={uploading === 'gallery'}
                 />
                 {uploading === 'gallery' && <p style={{ color: 'var(--gold)', marginTop: '10px' }}>UPLOADING... {uploadProgress}</p>}
