@@ -512,6 +512,17 @@ function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroA
     if (!audio || !heroAudioUrl) return;
 
     audio.volume = 0.4;
+    
+    // Stop audio 10 seconds after it starts playing
+    const handlePlay = () => {
+      setTimeout(() => {
+        if (audio) {
+          audio.pause();
+        }
+      }, 10000);
+    };
+    audio.addEventListener('play', handlePlay, { once: true });
+
     const playPromise = audio.play();
 
     if (playPromise !== undefined) {
