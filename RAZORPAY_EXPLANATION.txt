@@ -1,0 +1,26 @@
+Don't worry, the official website will not be affected at all, and payments will happen flawlessly! 
+
+When Razorpay approved that link, they were just verifying that we legally own the domain name (digvijaychauhan.com). They don't care which specific page on that domain they verified. Everything is 100% fine!
+
+Why do we need to do the Webhook steps?
+
+Think of the Webhook as an invisible, secure phone line between Razorpay and your database. 
+
+1. A student goes to your website and pays 1000 Rupees.
+2. The money goes into Razorpay.
+3. Here is the problem: How does your website know the student actually paid so it can unlock the course videos for them? If a hacker fakes a payment, we don't want to give them the course for free.
+4. The Solution (The Webhook): The moment Razorpay receives the real money, Razorpay automatically calls that webhook link and uses the Secret Password (FluteSecureWebhook2026!) to prove it's really them. Razorpay says: "I just collected the money! Unlock the course for this student!"
+
+If we don't set up the webhook with that password, Razorpay has no way to securely tell your website that the payment was successful. The money would leave the student's bank account, but they wouldn't get access to the course!
+
+IMPORTANT NOTE ON TESTING:
+Please note that because we are currently using your "Live" API keys, we cannot perform fake test payments. If anyone tries to test the checkout right now, it will ask for a real credit card and deduct real money from their bank account. If you want to do fake test payments before launching, we will need to temporarily use "Test Mode" keys from the Razorpay dashboard instead.
+
+To complete the setup, please follow these exact steps:
+1. Go to Razorpay Dashboard -> Account & Settings -> Webhooks.
+2. Click Add New Webhook.
+3. Paste exactly this link: https://www.digvijaychauhan.com/api/payment/webhook
+4. Check the 3 boxes for: order.paid, payment.captured, payment.failed
+5. In the Secret box, paste exactly this password: FluteSecureWebhook2026!
+
+Once you click save, the automatic unlock system will be fully connected!

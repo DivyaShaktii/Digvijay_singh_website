@@ -909,32 +909,39 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
     const priceValue = course.price ? parseInt(course.price.replace(/[^0-9]/g, "")) : 0;
     
     try {
+      // 1. Ask backend to securely create a Razorpay Order ID
+      const orderResponse = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: priceValue * 100, currency: "INR" })
+      });
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok || !orderData.id) {
+        throw new Error(orderData.error || "Failed to create order");
+      }
+
+      // 2. Open Razorpay Checkout with the secure Order ID
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_placeholder", 
-        amount: priceValue * 100, // in paisa
-        currency: "INR",
+        amount: orderData.amount, // from backend
+        currency: orderData.currency, // from backend
+        order_id: orderData.id, // THE SECURE ORDER ID
         name: "Flute Roots",
         description: `Enrollment: ${course.title}`,
         image: heroImageUrl || "/vite.svg",
         handler: async function (response: any) {
           try {
-            // Payment success
-            const { error } = await supabase
-              .from('enrollments')
-              .insert([{ 
-                user_id: user.id, 
-                course_id: course.id,
-                payment_id: response.razorpay_payment_id 
-              }]);
-
-            if (error) throw error;
-            alert("Congratulations! You are now enrolled.");
-            onRefresh();
+            // Payment success - the Webhook will handle the database insert!
+            // We just show a success message on the frontend.
+            alert("Payment successful! Your enrollment is being processed securely.");
+            
+            // Wait a few seconds for the webhook to finish, then refresh
             setTimeout(() => {
+              onRefresh();
               document.getElementById(`course-card-${course.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 1000);
+            }, 3000);
           } catch (err) {
-            alert("Payment recorded, but enrollment failed. Please contact support.");
             console.error(err);
           } finally {
             setPayingFor(null);
@@ -945,6 +952,8 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
           contact: "" 
         },
         notes: {
+          user_id: user.id, // Send user info securely through Razorpay notes to the Webhook
+          course_id: course.id,
           owner_email: "digvijayflute@gmail.com" 
         },
         theme: {
