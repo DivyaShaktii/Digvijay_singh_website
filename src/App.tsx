@@ -930,7 +930,14 @@ function CoursesPage({ navigate, courses, user, enrollments, calendarEvents, ann
       const orderResponse = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: priceValue * 100, currency: "INR" })
+        body: JSON.stringify({ 
+          amount: priceValue * 100, 
+          currency: "INR",
+          notes: {
+            user_id: user.id,
+            course_id: course.id
+          }
+        })
       });
       const orderData = await orderResponse.json();
 

@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { amount, currency } = req.body;
+    const { amount, currency, notes } = req.body;
 
     const razorpay = new Razorpay({
       key_id: process.env.VITE_RAZORPAY_KEY_ID,
@@ -17,6 +17,7 @@ export default async function handler(req, res) {
       amount: amount, // amount in the smallest currency unit
       currency: currency || "INR",
       receipt: `receipt_${Date.now()}`,
+      notes: notes,
     };
 
     const order = await razorpay.orders.create(options);
