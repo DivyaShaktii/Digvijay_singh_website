@@ -122,7 +122,7 @@ function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [galleryItems, setGalleryItems] = useState<GalleryImage[]>([]);
   const [enrollments, setEnrollments] = useState<string[]>([]); // Array of course_ids
-  const [heroImageUrl, setHeroImageUrl] = useState<string>(() => localStorage.getItem('local_hero_image') || images.hero);
+  const [heroImageUrl, setHeroImageUrl] = useState<string>(() => localStorage.getItem('local_hero_image') || "");
   const [heroAudioUrl, setHeroAudioUrl] = useState<string>("");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const defaultWeeklySchedule: Record<string, Record<string, string>> = {
@@ -391,7 +391,7 @@ function App() {
       )}
 
       <main className={!onAdminPage ? (route === "home" ? "has-header home-main" : "has-header") : ""}>
-        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} setHeroImageUrl={setHeroImageUrl} heroAudioUrl={heroAudioUrl} introVideo={introVideo} calendarEvents={calendarEvents} />}
+        {route === "home" && <HomePage navigate={navigate} galleryItems={galleryItems} heroImageUrl={heroImageUrl} setHeroImageUrl={setHeroImageUrl} heroAudioUrl={heroAudioUrl} introVideo={introVideo} calendarEvents={calendarEvents} loading={loading} />}
         {route === "biography" && <BiographyPage bioImageUrl={bioImageUrl} bioParagraphs={bioParagraphs} bioAwards={bioAwards} />}
         {route === "FluteRoots" && <CoursesPage navigate={navigate} courses={courses} user={user} enrollments={enrollments} calendarEvents={calendarEvents} announcements={announcements} onRefresh={fetchData} heroImageUrl={heroImageUrl} loading={loading} isUserAdmin={isUserAdmin} setActiveCourseId={setActiveCourseId} weeklySchedule={weeklySchedule} />}
         {route === "organizersCorner" && <OrganizersCornerPage images={galleryItems} calendarEvents={calendarEvents} navigate={navigate} stageSetupUrl={stageSetupUrl} weeklySchedule={weeklySchedule} />}
@@ -499,14 +499,15 @@ function Footer() {
   );
 }
 
-function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroAudioUrl, introVideo, calendarEvents }: { 
+function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroAudioUrl, introVideo, calendarEvents, loading }: { 
   navigate: (to: AppRoute) => void,
   galleryItems: GalleryImage[], 
   heroImageUrl: string,
   setHeroImageUrl: (url: string) => void,
   heroAudioUrl?: string,
   introVideo: { url: string, title: string, description: string },
-  calendarEvents: CalendarEvent[]
+  calendarEvents: CalendarEvent[],
+  loading?: boolean
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -648,13 +649,15 @@ function HomePage({ navigate, galleryItems, heroImageUrl, setHeroImageUrl, heroA
             <div className="hero-media">
               <div className="portrait-spotlight"></div>
               <div className="portrait-wrapper" style={{ position: 'relative' }}>
-                <img 
-                  src={heroImageUrl || images.hero} 
-                  alt={artistProfile.name} 
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = images.hero;
-                  }}
-                />
+                {(heroImageUrl || !loading) && (
+                  <img 
+                    src={heroImageUrl || images.hero} 
+                    alt={artistProfile.name} 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = images.hero;
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
