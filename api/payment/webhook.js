@@ -64,7 +64,8 @@ export default async function handler(req, res) {
 
         if (error && !error.message?.includes('unique_enrollment')) {
           console.error('Supabase Error:', error);
-          return res.status(500).json({ error: 'Database error' });
+          // TEMPORARILY SENDING ERROR MESSAGE BACK FOR DEBUGGING
+          return res.status(500).json({ error: 'Database error', details: error.message, hint: error.hint, code: error.code });
         }
       }
     }
