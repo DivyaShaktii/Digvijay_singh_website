@@ -58,14 +58,12 @@ export default async function handler(req, res) {
           .from('enrollments')
           .insert([{ 
             user_id: userId, 
-            course_id: courseId,
-            payment_id: paymentData.id 
+            course_id: courseId
           }]);
 
         if (error && !error.message?.includes('unique_enrollment')) {
           console.error('Supabase Error:', error);
-          // TEMPORARILY SENDING ERROR MESSAGE BACK FOR DEBUGGING
-          return res.status(500).json({ error: 'Database error', details: error.message, hint: error.hint, code: error.code });
+          return res.status(500).json({ error: 'Database error' });
         }
       }
     }
