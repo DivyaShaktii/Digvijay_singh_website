@@ -3518,22 +3518,7 @@ function LoginPage({ navigate }: { navigate: (to: AppRoute) => void }) {
             </svg>
             Continue with Google
           </button>
-          
-          <button 
-            onClick={() => handleOAuthLogin('azure')}
-            type="button" 
-            className="admin-btn" 
-            style={{ width: '100%', background: '#fff', color: '#333', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }} 
-            disabled={loading}
-          >
-            <svg width="20" height="20" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
-            </svg>
-            Continue with Microsoft
-          </button>
+
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0' }}>
